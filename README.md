@@ -84,6 +84,22 @@ npm run tauri:build
 
 产物位于 `src-tauri/target/release/bundle/`。正式分发仍需配置 macOS 签名/公证和 Windows 代码签名。
 
+## 下载桌面安装包
+
+版本标签推送到 GitHub 后，发布工作流会自动构建并上传以下安装包到 [GitHub Releases](https://github.com/MmmmrJ/token-monitor/releases)：
+
+- macOS：通用架构 `.dmg`，同时支持 Apple Silicon 与 Intel Mac。
+- Windows：x64 `.msi` 和 NSIS `-setup.exe`。
+
+当前公开构建未配置 Apple Developer ID 公证或 Windows 商业代码签名。macOS 首次打开时可能需要在“隐私与安全性”中确认允许；Windows 可能显示 SmartScreen 提示。正式对外分发前应配置两端签名证书。
+
+创建新版本时，先将 `package.json`、`src-tauri/tauri.conf.json` 和 `src-tauri/Cargo.toml` 的版本保持一致，再推送对应标签。例如：
+
+```bash
+git tag -a v1.0 -m "Codex Usage Monitor v1.0"
+git push origin v1.0
+```
+
 ## 验证
 
 ```bash
