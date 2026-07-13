@@ -1,9 +1,0 @@
-/Users/bianchi/my-project/tools/token-monitor/src-tauri/target/debug/deps/mac_notification_sys-b368c64de7e73bb7.d: /Users/bianchi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/mac-notification-sys-0.6.15/src/lib.rs /Users/bianchi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/mac-notification-sys-0.6.15/src/bridge.rs /Users/bianchi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/mac-notification-sys-0.6.15/src/error.rs /Users/bianchi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/mac-notification-sys-0.6.15/src/notification.rs /Users/bianchi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/mac-notification-sys-0.6.15/src/pending_guard.rs
-
-/Users/bianchi/my-project/tools/token-monitor/src-tauri/target/debug/deps/libmac_notification_sys-b368c64de7e73bb7.rmeta: /Users/bianchi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/mac-notification-sys-0.6.15/src/lib.rs /Users/bianchi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/mac-notification-sys-0.6.15/src/bridge.rs /Users/bianchi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/mac-notification-sys-0.6.15/src/error.rs /Users/bianchi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/mac-notification-sys-0.6.15/src/notification.rs /Users/bianchi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/mac-notification-sys-0.6.15/src/pending_guard.rs
-
-/Users/bianchi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/mac-notification-sys-0.6.15/src/lib.rs:
-/Users/bianchi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/mac-notification-sys-0.6.15/src/bridge.rs:
-/Users/bianchi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/mac-notification-sys-0.6.15/src/error.rs:
-/Users/bianchi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/mac-notification-sys-0.6.15/src/notification.rs:
-/Users/bianchi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/mac-notification-sys-0.6.15/src/pending_guard.rs:
