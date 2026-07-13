@@ -1,0 +1,22 @@
+{
+  "name": "codex-usage-monitor",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "start": "vite --host 127.0.0.1",
+    "build": "vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "tauri": "PATH=\"$HOME/.cargo/bin:$PATH\" tauri",
+    "tauri:dev": "PATH=\"$HOME/.cargo/bin:$PATH\" tauri dev",
+    "tauri:build": "PATH=\"$HOME/.cargo/bin:$PATH\" tauri build",
+    "codex": "node scripts/codex-with-monitor.mjs"
+  },
+  "dependencies": {
+    "@phosphor-icons/web": "^2.1.2"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.11.4",
+    "typescript": "^7.0.2",
+    "vite": "^6.4.3"
+  }
+}

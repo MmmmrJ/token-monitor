@@ -1,0 +1,14 @@
+/Users/bianchi/my-project/tools/token-monitor/src-tauri/target/release/deps/serde-1084cae5991bbf8c.d: /Users/bianchi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs /Users/bianchi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs /Users/bianchi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs /Users/bianchi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs /Users/bianchi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs /Users/bianchi/my-project/tools/token-monitor/src-tauri/target/release/build/serde-2f6c3be023fed109/out/private.rs
+
+/Users/bianchi/my-project/tools/token-monitor/src-tauri/target/release/deps/libserde-1084cae5991bbf8c.rlib: /Users/bianchi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs /Users/bianchi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs /Users/bianchi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs /Users/bianchi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs /Users/bianchi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs /Users/bianchi/my-project/tools/token-monitor/src-tauri/target/release/build/serde-2f6c3be023fed109/out/private.rs
+
+/Users/bianchi/my-project/tools/token-monitor/src-tauri/target/release/deps/libserde-1084cae5991bbf8c.rmeta: /Users/bianchi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs /Users/bianchi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs /Users/bianchi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs /Users/bianchi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs /Users/bianchi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs /Users/bianchi/my-project/tools/token-monitor/src-tauri/target/release/build/serde-2f6c3be023fed109/out/private.rs
+
+/Users/bianchi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs:
+/Users/bianchi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs:
+/Users/bianchi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs:
+/Users/bianchi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs:
+/Users/bianchi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs:
+/Users/bianchi/my-project/tools/token-monitor/src-tauri/target/release/build/serde-2f6c3be023fed109/out/private.rs:
+
+# env-dep:OUT_DIR=/Users/bianchi/my-project/tools/token-monitor/src-tauri/target/release/build/serde-2f6c3be023fed109/out

@@ -1,0 +1,14 @@
+/Users/bianchi/my-project/tools/token-monitor/src-tauri/target/release/deps/thiserror-30c4ebdabfb6098e.d: /Users/bianchi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/lib.rs /Users/bianchi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/aserror.rs /Users/bianchi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/display.rs /Users/bianchi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/var.rs /Users/bianchi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/private.rs /Users/bianchi/my-project/tools/token-monitor/src-tauri/target/release/build/thiserror-2326a755f0fb8599/out/private.rs
+
+/Users/bianchi/my-project/tools/token-monitor/src-tauri/target/release/deps/libthiserror-30c4ebdabfb6098e.rlib: /Users/bianchi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/lib.rs /Users/bianchi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/aserror.rs /Users/bianchi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/display.rs /Users/bianchi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/var.rs /Users/bianchi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/private.rs /Users/bianchi/my-project/tools/token-monitor/src-tauri/target/release/build/thiserror-2326a755f0fb8599/out/private.rs
+
+/Users/bianchi/my-project/tools/token-monitor/src-tauri/target/release/deps/libthiserror-30c4ebdabfb6098e.rmeta: /Users/bianchi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/lib.rs /Users/bianchi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/aserror.rs /Users/bianchi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/display.rs /Users/bianchi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/var.rs /Users/bianchi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/private.rs /Users/bianchi/my-project/tools/token-monitor/src-tauri/target/release/build/thiserror-2326a755f0fb8599/out/private.rs
+
+/Users/bianchi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/lib.rs:
+/Users/bianchi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/aserror.rs:
+/Users/bianchi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/display.rs:
+/Users/bianchi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/var.rs:
+/Users/bianchi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/private.rs:
+/Users/bianchi/my-project/tools/token-monitor/src-tauri/target/release/build/thiserror-2326a755f0fb8599/out/private.rs:
+
+# env-dep:OUT_DIR=/Users/bianchi/my-project/tools/token-monitor/src-tauri/target/release/build/thiserror-2326a755f0fb8599/out

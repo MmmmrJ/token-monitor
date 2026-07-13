@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark light" />
+    <title>Codex Usage Monitor</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="widget-shell is-loading" id="monitor" aria-busy="true">
+      <header class="widget-header" id="drag-handle" data-tauri-drag-region>
+        <div class="brand" data-tauri-drag-region>
+          <img src="./src-tauri/icons/icon.svg" alt="" />
+          <strong>Codex Usage Monitor</strong>
+          <span class="account-pill" id="account-pill"><i></i><span id="account-pill-copy">本机账户</span></span>
+        </div>
+        <div class="header-actions">
+          <button class="icon-button" id="view-button" type="button" aria-label="切换视图" title="切换视图"><i class="ph ph-layout" aria-hidden="true"></i></button>
+          <button class="icon-button" id="refresh-button" type="button" aria-label="刷新额度" title="刷新额度"><i class="ph ph-arrows-clockwise" aria-hidden="true"></i></button>
+          <button class="icon-button" id="settings-button" type="button" aria-label="打开设置" title="设置" aria-expanded="false"><i class="ph ph-gear-six" aria-hidden="true"></i></button>
+        </div>
+      </header>
+
+      <div class="status-banner" id="status-banner" role="status" hidden>
+        <i class="ph ph-info" aria-hidden="true"></i>
+        <span id="status-copy"></span>
+      </div>
+
+      <section class="widget-view dual-view" id="dual-view" aria-label="双环额度视图">
+        <article class="quota-dial" data-window="fiveHour">
+          <div class="dial-ring" id="five-ring" style="--progress:0">
+            <div class="dial-core">
+              <span class="quota-label" data-i18n="fiveRemaining">5 小时剩余</span>
+              <strong id="five-percent">—</strong>
+              <time id="five-reset">—</time>
+              <small id="five-state">正在读取</small>
+            </div>
+          </div>
+        </article>
+        <article class="quota-dial" data-window="sevenDay">
+          <div class="dial-ring" id="week-ring" style="--progress:0">
+            <div class="dial-core">
+              <span class="quota-label" data-i18n="weekRemaining">7 天剩余</span>
+              <strong id="week-percent">—</strong>
+              <time id="week-reset">—</time>
+              <small id="week-state">正在读取</small>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <section class="widget-view focus-view" id="focus-view" aria-label="聚焦额度视图" hidden>
+        <article class="focus-primary">
+          <div class="focus-ring" id="focus-ring" style="--progress:0">
+            <div>
+              <span class="quota-label" data-i18n="fiveRemaining">5 小时剩余</span>
+              <strong id="focus-five-percent">—</strong>
+              <small id="focus-five-state">正在读取</small>
+            </div>
+          </div>
+        </article>
+        <article class="focus-secondary">
+          <span class="quota-label" data-i18n="weekRemaining">7 天剩余</span>
+          <strong id="focus-week-percent">—</strong>
+          <div class="quota-rail"><span id="focus-week-rail" style="width:0%"></span></div>
+          <small id="focus-week-state">正在读取</small>
+        </article>
+        <footer class="next-reset">
+          <i class="ph ph-clock" aria-hidden="true"></i>
+          <span data-i18n="nextReset">下次重置</span>
+          <strong id="next-countdown">—</strong>
+          <time id="next-reset-time">—</time>
+        </footer>
+      </section>
+
+      <section class="settings-layer" id="settings-layer" aria-hidden="true" hidden>
+        <div class="settings-card" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+          <div class="settings-heading">
+            <div><span data-i18n="settingsKicker">小组件设置</span><h2 id="settings-title" data-i18n="settingsTitle">显示与启动</h2></div>
+            <button class="icon-button" id="settings-close" type="button" aria-label="关闭设置"><i class="ph ph-x" aria-hidden="true"></i></button>
+          </div>
+          <div class="source-card">
+            <i class="ph ph-desktop-tower" aria-hidden="true"></i>
+            <div><strong id="source-account">本机 Codex 账户</strong><span id="source-detail">~/.codex/auth.json</span></div>
+            <b id="source-plan">—</b>
+          </div>
+          <fieldset class="view-picker">
+            <legend data-i18n="viewStyle">展示样式</legend>
+            <button type="button" data-view="dual"><i class="ph ph-circles-three-plus" aria-hidden="true"></i><span data-i18n="dualView">双环</span></button>
+            <button type="button" data-view="focus"><i class="ph ph-gauge" aria-hidden="true"></i><span data-i18n="focusView">聚焦</span></button>
+          </fieldset>
+          <div class="setting-row">
+            <span><strong data-i18n="language">界面语言</strong><small data-i18n="languageHelp">中文 / English</small></span>
+            <button class="text-button" id="language-button" type="button">English</button>
+          </div>
+          <label class="setting-row">
+            <span><strong data-i18n="alwaysTop">始终置顶</strong><small data-i18n="alwaysTopHelp">保持小组件浮在其他窗口上方</small></span>
+            <input id="always-on-top" type="checkbox" role="switch" />
+          </label>
+          <label class="setting-row">
+            <span><strong data-i18n="startLogin">登录时启动</strong><small data-i18n="startLoginHelp">进入系统后自动运行</small></span>
+            <input id="start-at-login" type="checkbox" role="switch" />
+          </label>
+          <p class="privacy-note"><i class="ph ph-shield-check" aria-hidden="true"></i><span data-i18n="privacy">登录令牌只在 Rust 进程内读取，不会发送到前端、日志或导出文件。</span></p>
+        </div>
+      </section>
+
+      <div class="resize-handle resize-n" data-direction="north"></div>
+      <div class="resize-handle resize-s" data-direction="south"></div>
+      <div class="resize-handle resize-e" data-direction="east"></div>
+      <div class="resize-handle resize-w" data-direction="west"></div>
+      <div class="resize-handle resize-ne" data-direction="northEast"></div>
+      <div class="resize-handle resize-nw" data-direction="northWest"></div>
+      <div class="resize-handle resize-se" data-direction="southEast"></div>
+      <div class="resize-handle resize-sw" data-direction="southWest"></div>
+    </main>
+    <script type="module" src="app.js"></script>
+  </body>
+</html>

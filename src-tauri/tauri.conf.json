@@ -1,0 +1,44 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Codex Usage Monitor",
+  "version": "0.1.0",
+  "identifier": "com.codexusagemonitor.desktop",
+  "build": {
+    "beforeDevCommand": "npm run start",
+    "beforeBuildCommand": "npm run build",
+    "devUrl": "http://127.0.0.1:4173",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "label": "main",
+        "title": "Codex Usage Monitor",
+        "width": 620,
+        "height": 360,
+        "minWidth": 480,
+        "minHeight": 300,
+        "decorations": false,
+        "transparent": true,
+        "backgroundColor": [0, 0, 0, 0],
+        "shadow": false,
+        "resizable": true,
+        "visible": true,
+        "alwaysOnTop": false
+      }
+    ],
+    "macOSPrivateApi": true,
+    "security": {
+      "csp": "default-src 'self'; connect-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; font-src 'self' data:;"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "icon": ["icons/icon.png"],
+    "targets": ["dmg", "app", "msi", "nsis"],
+    "category": "DeveloperTool",
+    "shortDescription": "Monitor local Codex quota windows",
+    "longDescription": "A compact desktop widget that reads quota windows from the current local Codex sign-in session."
+  }
+}
