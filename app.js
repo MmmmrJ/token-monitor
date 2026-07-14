@@ -10,7 +10,7 @@ const storageKey = 'codex-usage-monitor:widget:v2';
 const copy = {
   zh: {
     localAccount: '本机账户', fiveRemaining: '5 小时剩余', weekRemaining: '7 天剩余',
-    includedRemaining: 'Included 剩余', ondemandRemaining: 'On-demand 剩余',
+    firstPartyRemaining: 'First-party 剩余', apiRemaining: 'API 剩余',
     nextReset: '下次重置', dualAria: '双环额度视图', focusAria: '聚焦额度视图',
     loading: '正在读取', unavailable: '当前账户未提供', resets: '重置', justNow: '刚刚更新', cached: '缓存数据',
     settingsKicker: '小组件设置', settingsTitle: '显示与启动', viewStyle: '展示样式', dualView: '双环', focusView: '聚焦',
@@ -38,7 +38,7 @@ const copy = {
   },
   en: {
     localAccount: 'Local account', fiveRemaining: '5-hour remaining', weekRemaining: '7-day remaining',
-    includedRemaining: 'Included remaining', ondemandRemaining: 'On-demand remaining',
+    firstPartyRemaining: 'First-party remaining', apiRemaining: 'API remaining',
     nextReset: 'Next reset', dualAria: 'Dual-ring quota view', focusAria: 'Focused quota view',
     loading: 'Loading', unavailable: 'Not provided for this account', resets: 'reset', justNow: 'Updated just now', cached: 'Cached data',
     settingsKicker: 'Widget settings', settingsTitle: 'Display & startup', viewStyle: 'View style', dualView: 'Dual rings', focusView: 'Focus',
@@ -128,8 +128,8 @@ function previewSnapshot() {
         source: 'preview', authPathLabel: defaultAuthLabel()
       },
       windows: {
-        fiveHour: quota(58, 2_592_000, 12 * 86400_000, { unit: 'usd_cents', usedAmount: 16800, limitAmount: 40000 }),
-        sevenDay: quota(75, 2_592_000, 12 * 86400_000, { unit: 'usd_cents', usedAmount: 2500, limitAmount: 10000 })
+        fiveHour: quota(68, 2_592_000, 12 * 86400_000),
+        sevenDay: quota(78, 2_592_000, 12 * 86400_000)
       },
       refreshedAt: new Date().toISOString(), checkedAt: new Date().toISOString(), cached: false
     };
@@ -155,10 +155,10 @@ function syncProviderControls() {
   $('#brand-title').textContent = t('brand');
   document.title = t('brand');
   $$('[data-i18n="fiveRemaining"]').forEach((el) => {
-    el.textContent = isCursor() ? t('includedRemaining') : t('fiveRemaining');
+    el.textContent = isCursor() ? t('firstPartyRemaining') : t('fiveRemaining');
   });
   $$('[data-i18n="weekRemaining"]').forEach((el) => {
-    el.textContent = isCursor() ? t('ondemandRemaining') : t('weekRemaining');
+    el.textContent = isCursor() ? t('apiRemaining') : t('weekRemaining');
   });
 }
 

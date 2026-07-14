@@ -34,6 +34,7 @@ struct PeriodUsageResponse {
     billing_cycle_start: Option<String>,
     billing_cycle_end: Option<String>,
     plan_usage: Option<PlanUsage>,
+    #[allow(dead_code)]
     spend_limit_usage: Option<SpendLimitUsage>,
 }
 
@@ -43,11 +44,17 @@ struct PlanUsage {
     included_spend: Option<f64>,
     remaining: Option<f64>,
     limit: Option<f64>,
+    /// First-party / Auto pool (Dashboard "First-party models").
+    auto_percent_used: Option<f64>,
+    /// API pool (Dashboard "API").
+    api_percent_used: Option<f64>,
     total_percent_used: Option<f64>,
 }
 
+/// On-demand spend caps; kept for response shape, not mapped into dual rings.
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[allow(dead_code)]
 struct SpendLimitUsage {
     individual_limit: Option<f64>,
     individual_used: Option<f64>,
@@ -213,7 +220,30 @@ fn map_period_usage(payload: &PeriodUsageResponse) -> QuotaWindows {
 
     let mut windows = QuotaWindows::default();
 
-    if let Some(plan) = &payload.plan_usage {
+    let Some(plan) = &payload.plan_usage else {
+        return windows;
+    };
+
+    // Dual rings align with Dashboard: First-party (left) + API (right).
+    if let Some(percent) = plan.auto_percent_used {
+        windows.five_hour = Some(QuotaWindow::from_percent(
+            percent,
+            duration,
+            reset_after,
+            resets_at.clone(),
+        ));
+    }
+    if let Some(percent) = plan.api_percent_used {
+        windows.seven_day = Some(QuotaWindow::from_percent(
+            percent,
+            duration,
+            reset_after,
+            resets_at.clone(),
+        ));
+    }
+
+    // Legacy fallback only when both percent pools are absent.
+    if windows.five_hour.is_none() && windows.seven_day.is_none() {
         let limit = plan.limit.unwrap_or(0.0);
         let used = if limit > 0.0 {
             plan.included_spend
@@ -236,27 +266,9 @@ fn map_period_usage(payload: &PeriodUsageResponse) -> QuotaWindows {
                 percent,
                 duration,
                 reset_after,
-                resets_at.clone(),
+                resets_at,
             ));
         }
-    }
-
-    if let Some(spend) = &payload.spend_limit_usage {
-        let (used, limit) = if spend.individual_limit.unwrap_or(0.0) > 0.0 {
-            (
-                spend.individual_used.unwrap_or(0.0),
-                spend.individual_limit.unwrap_or(0.0),
-            )
-        } else if spend.pooled_limit.unwrap_or(0.0) > 0.0 {
-            (
-                spend.pooled_used.unwrap_or(0.0),
-                spend.pooled_limit.unwrap_or(0.0),
-            )
-        } else {
-            (0.0, 0.0)
-        };
-        windows.seven_day =
-            QuotaWindow::from_amounts(used, limit, duration, reset_after, resets_at, "usd_cents");
     }
 
     windows
@@ -585,35 +597,37 @@ mod tests {
     use super::*;
 
     #[test]
-    fn maps_included_and_ondemand_spend() {
+    fn maps_first_party_and_api_percent() {
         let payload = PeriodUsageResponse {
             billing_cycle_start: Some("1768399334000".into()),
             billing_cycle_end: Some("1771077734000".into()),
             plan_usage: Some(PlanUsage {
-                included_spend: Some(23222.0),
-                remaining: Some(16778.0),
-                limit: Some(40000.0),
-                total_percent_used: Some(15.48),
+                included_spend: Some(2000.0),
+                remaining: Some(0.0),
+                limit: Some(2000.0),
+                auto_percent_used: Some(32.0),
+                api_percent_used: Some(22.0),
+                total_percent_used: Some(30.0),
             }),
             spend_limit_usage: Some(SpendLimitUsage {
-                individual_limit: Some(10000.0),
-                individual_used: Some(2500.0),
+                individual_limit: Some(0.0),
+                individual_used: Some(0.0),
                 pooled_limit: None,
                 pooled_used: None,
             }),
         };
         let windows = map_period_usage(&payload);
-        let included = windows.five_hour.unwrap();
-        assert!((included.used_percent - 58.055).abs() < 0.01);
-        assert_eq!(included.unit.as_deref(), Some("usd_cents"));
-        assert_eq!(included.used_amount, Some(23222.0));
-        let ondemand = windows.seven_day.unwrap();
-        assert_eq!(ondemand.used_percent, 25.0);
-        assert_eq!(ondemand.limit_amount, Some(10000.0));
+        let first_party = windows.five_hour.unwrap();
+        assert_eq!(first_party.used_percent, 32.0);
+        assert_eq!(first_party.remaining_percent, 68.0);
+        assert!(first_party.unit.is_none());
+        let api = windows.seven_day.unwrap();
+        assert_eq!(api.used_percent, 22.0);
+        assert_eq!(api.remaining_percent, 78.0);
     }
 
     #[test]
-    fn omits_ondemand_when_limit_missing() {
+    fn omits_missing_percent_pools() {
         let payload = PeriodUsageResponse {
             billing_cycle_start: Some("1768399334000".into()),
             billing_cycle_end: Some("1771077734000".into()),
@@ -621,17 +635,36 @@ mod tests {
                 included_spend: Some(1000.0),
                 remaining: Some(9000.0),
                 limit: Some(10000.0),
+                auto_percent_used: Some(10.0),
+                api_percent_used: None,
                 total_percent_used: None,
             }),
-            spend_limit_usage: Some(SpendLimitUsage {
-                individual_limit: Some(0.0),
-                individual_used: Some(0.0),
-                pooled_limit: Some(0.0),
-                pooled_used: Some(0.0),
-            }),
+            spend_limit_usage: None,
         };
         let windows = map_period_usage(&payload);
-        assert!(windows.five_hour.is_some());
+        assert_eq!(windows.five_hour.unwrap().used_percent, 10.0);
+        assert!(windows.seven_day.is_none());
+    }
+
+    #[test]
+    fn falls_back_to_dollar_when_percents_absent() {
+        let payload = PeriodUsageResponse {
+            billing_cycle_start: Some("1768399334000".into()),
+            billing_cycle_end: Some("1771077734000".into()),
+            plan_usage: Some(PlanUsage {
+                included_spend: Some(23222.0),
+                remaining: Some(16778.0),
+                limit: Some(40000.0),
+                auto_percent_used: None,
+                api_percent_used: None,
+                total_percent_used: Some(15.48),
+            }),
+            spend_limit_usage: None,
+        };
+        let windows = map_period_usage(&payload);
+        let included = windows.five_hour.unwrap();
+        assert!((included.used_percent - 58.055).abs() < 0.01);
+        assert_eq!(included.unit.as_deref(), Some("usd_cents"));
         assert!(windows.seven_day.is_none());
     }
 

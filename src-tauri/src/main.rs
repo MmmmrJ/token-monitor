@@ -57,7 +57,7 @@ fn tray_icon_image() -> tauri::Result<Image<'static>> {
 fn update_tray_tooltip(app: &AppHandle, snapshot: &MonitorSnapshot) {
     let kind = snapshot.provider.kind.as_str();
     let (primary_label, secondary_label) = match kind {
-        "cursor" => ("Included", "On-demand"),
+        "cursor" => ("First-party", "API"),
         _ => ("5h", "7d"),
     };
     let primary = snapshot

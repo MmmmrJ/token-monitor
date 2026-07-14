@@ -1,12 +1,12 @@
 # Token Monitor
 
-一个面向 Windows / macOS 的紧凑型 Tauri 桌面悬浮组件，用来查看本机 **Codex**（5 小时 / 7 天）或 **Cursor**（Included / On-demand）额度。
+一个面向 Windows / macOS 的紧凑型 Tauri 桌面悬浮组件，用来查看本机 **Codex**（5 小时 / 7 天）或 **Cursor**（First-party / API）额度。
 
 ## 当前能力
 
 - 标题栏 Codex / Cursor 商标图标快切，设置面板同源切换；选择会持久化。
 - **Codex**：自动读取 `$CODEX_HOME/auth.json`，未设置时读取 `~/.codex/auth.json`；按 `limit_window_seconds` 识别 5 小时与 7 天窗口。
-- **Cursor**：只读本机 `state.vscdb` 登录态，查询周期 Included 与 On-demand 额度；无需粘贴 Cookie 或 API Key。
+- **Cursor**：只读本机 `state.vscdb` 登录态，查询周期 First-party 与 API 额度；无需粘贴 Cookie 或 API Key。
 - 同时提供「双环」与「聚焦」两套 UI，右上角按钮或设置面板可即时切换并记住选择。
 - 显示各窗口剩余百分比、重置时间（Cursor 可附带美元/请求用量提示）和最近窗口倒计时。
 - 某个窗口未下发时明确显示“当前账户未提供”，不会填充 Demo 或推算数据。

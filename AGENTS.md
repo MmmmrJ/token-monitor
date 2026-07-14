@@ -2,7 +2,7 @@
 
 ## 项目定位
 
-这是一个 Tauri v2 桌面悬浮组件。主任务是以最少视觉噪声显示当前本机账户额度：Codex 的 5 小时 / 7 天窗口，或 Cursor 的 Included / On-demand。主界面只保留两种可切换视图：`.dual-view` 与 `.focus-view`；标题栏提供 Codex / Cursor Provider 快切。
+这是一个 Tauri v2 桌面悬浮组件。主任务是以最少视觉噪声显示当前本机账户额度：Codex 的 5 小时 / 7 天窗口，或 Cursor 的 First-party / API。主界面只保留两种可切换视图：`.dual-view` 与 `.focus-view`；标题栏提供 Codex / Cursor Provider 快切。
 
 ## 技术约束
 
@@ -37,7 +37,7 @@
 - 只读本机 Cursor SQLite：`%APPDATA%\Cursor\User\globalStorage\state.vscdb`（macOS/Linux 对应路径）。
 - 允许访问 `https://api2.cursor.sh` 的用量/鉴权端点（含 Connect RPC `GetCurrentPeriodUsage`）；同属非公开稳定接口。
 - Access token 过期时允许**仅在内存中**用 refresh token 调 `/oauth/token`；禁止写回 `state.vscdb`。
-- 双槽映射：`fiveHour` ← Included / First-party；`sevenDay` ← On-demand / API；缺失则不可用，不得造数。
+- 双槽映射：`fiveHour` ← First-party（`planUsage.autoPercentUsed`）；`sevenDay` ← API（`planUsage.apiPercentUsed`）；缺失则不可用，不得造数。
 
 ### 共性
 
@@ -58,7 +58,7 @@ npm run tauri:dev
 变更后至少验证：
 
 1. 双环/聚焦切换及重启恢复；标题栏 Codex ↔ Cursor 快切与设置同源同步。
-2. 中文/英文、加载、未登录、过期、离线缓存、只返回单个窗口（含 Cursor 无 On-demand）。
+2. 中文/英文、加载、未登录、过期、离线缓存、只返回单个窗口（含 Cursor 仅一侧百分比）。
 3. 标题栏拖动、四边/四角缩放、最小尺寸、圆角透明边缘。
 4. 手动刷新防抖、60 秒刷新、托盘刷新与摘要。
 5. macOS/Windows 的位置恢复、始终置顶和登录时启动。
