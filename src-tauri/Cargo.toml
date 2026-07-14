@@ -1,8 +1,8 @@
 [package]
 name = "codex-usage-monitor"
 version = "1.1.0"
-description = "A privacy-first desktop monitor for authorized Codex usage data"
-authors = ["Codex Usage Monitor"]
+description = "A privacy-first desktop monitor for local Codex and Cursor usage data"
+authors = ["Token Monitor"]
 edition = "2021"
 
 [build-dependencies]
@@ -15,6 +15,6 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "rus
 rusqlite = { version = "0.32", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-tauri = { version = "2", features = ["tray-icon", "macos-private-api"] }
+tauri = { version = "2", features = ["tray-icon", "macos-private-api", "image-png"] }
 tauri-plugin-autostart = "2"
 tauri-plugin-window-state = "2"

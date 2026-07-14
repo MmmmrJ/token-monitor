@@ -150,14 +150,13 @@ fn read_cursor_auth(db_path: &Path) -> Result<CursorAuth, ProviderFailure> {
         ));
     }
 
-    let conn = Connection::open_with_flags(db_path, OpenFlags::SQLITE_OPEN_READ_ONLY).map_err(
-        |_| {
+    let conn =
+        Connection::open_with_flags(db_path, OpenFlags::SQLITE_OPEN_READ_ONLY).map_err(|_| {
             provider_failure(
                 "auth_unreadable",
                 "The local Cursor session database could not be opened.",
             )
-        },
-    )?;
+        })?;
 
     let access_token = read_item(&conn, "cursorAuth/accessToken").ok_or_else(|| {
         provider_failure(
@@ -203,7 +202,7 @@ fn resets_at_rfc3339(end: Option<&str>) -> Option<String> {
     parse_millis_timestamp(end).map(|dt| dt.to_rfc3339())
 }
 
-pub fn map_period_usage(payload: &PeriodUsageResponse) -> QuotaWindows {
+fn map_period_usage(payload: &PeriodUsageResponse) -> QuotaWindows {
     let duration = cycle_duration_seconds(
         payload.billing_cycle_start.as_deref(),
         payload.billing_cycle_end.as_deref(),
@@ -218,10 +217,7 @@ pub fn map_period_usage(payload: &PeriodUsageResponse) -> QuotaWindows {
         let limit = plan.limit.unwrap_or(0.0);
         let used = if limit > 0.0 {
             plan.included_spend
-                .or_else(|| {
-                    plan.remaining
-                        .map(|remaining| (limit - remaining).max(0.0))
-                })
+                .or_else(|| plan.remaining.map(|remaining| (limit - remaining).max(0.0)))
                 .unwrap_or(0.0)
         } else {
             0.0
@@ -259,14 +255,8 @@ pub fn map_period_usage(payload: &PeriodUsageResponse) -> QuotaWindows {
         } else {
             (0.0, 0.0)
         };
-        windows.seven_day = QuotaWindow::from_amounts(
-            used,
-            limit,
-            duration,
-            reset_after,
-            resets_at,
-            "usd_cents",
-        );
+        windows.seven_day =
+            QuotaWindow::from_amounts(used, limit, duration, reset_after, resets_at, "usd_cents");
     }
 
     windows
@@ -570,9 +560,7 @@ pub async fn fetch_local_snapshot() -> Result<MonitorSnapshot, ProviderFailure> 
     let now = Utc::now().to_rfc3339();
     Ok(MonitorSnapshot {
         account: AccountSummary {
-            display_name: auth
-                .email
-                .unwrap_or_else(|| "Local Cursor account".into()),
+            display_name: auth.email.unwrap_or_else(|| "Local Cursor account".into()),
             plan: plan_name
                 .or(auth.membership)
                 .unwrap_or_else(|| "Cursor".into()),

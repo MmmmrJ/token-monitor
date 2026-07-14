@@ -38,7 +38,7 @@ const server = createServer((request, response) => {
 });
 
 server.listen(port, '127.0.0.1', () => {
-  console.log(`Codex Usage Monitor is available at http://127.0.0.1:${port}`);
+  console.log(`Token Monitor is available at http://127.0.0.1:${port}`);
 });
 
 function shutdown() {

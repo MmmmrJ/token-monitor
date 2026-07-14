@@ -18,10 +18,22 @@ function waitForExit(child) {
 
 async function launchInstalledMonitor() {
   if (process.platform === 'darwin') {
-    return waitForExit(run('open', ['-a', 'Codex Usage Monitor']));
+    for (const appName of ['Token Monitor', 'Codex Usage Monitor']) {
+      if (await waitForExit(run('open', ['-a', appName]))) return true;
+    }
+    return false;
   }
   if (process.platform === 'win32') {
-    return waitForExit(run('powershell.exe', ['-NoProfile', '-Command', "Start-Process 'Codex Usage Monitor'"] , { windowsHide: true }));
+    const command = [
+      "$roots = @($env:APPDATA, $env:ProgramData) | ForEach-Object { Join-Path $_ 'Microsoft\\Windows\\Start Menu\\Programs' }",
+      "$names = @('Token Monitor.lnk', 'Codex Usage Monitor.lnk')",
+      "$shortcut = Get-ChildItem -Path $roots -Recurse -File -ErrorAction SilentlyContinue | Where-Object { $names -contains $_.Name } | Select-Object -First 1",
+      "if ($shortcut) { Start-Process $shortcut.FullName; exit 0 }",
+      "$binary = Get-Command 'codex-usage-monitor.exe' -ErrorAction SilentlyContinue",
+      "if ($binary) { Start-Process $binary.Source; exit 0 }",
+      "exit 1"
+    ].join('; ');
+    return waitForExit(run('powershell.exe', ['-NoProfile', '-Command', command], { windowsHide: true }));
   }
   return waitForExit(run('codex-usage-monitor', []));
 }
@@ -38,7 +50,7 @@ async function ensureMonitor() {
 
 function printUsage() {
   console.log('Usage: npm run codex -- [Codex arguments]');
-  console.log('Launches the native Codex Usage Monitor, then starts Codex CLI.');
+  console.log('Launches the native Token Monitor, then starts Codex CLI.');
   console.log('Use --monitor-only to launch only the monitor.');
 }
 

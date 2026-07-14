@@ -1,4 +1,4 @@
-# Codex Usage Monitor — Agent Guide
+# Token Monitor — Agent Guide
 
 ## 项目定位
 

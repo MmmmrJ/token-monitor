@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Codex Usage Monitor",
+  "productName": "Token Monitor",
   "version": "1.1.0",
   "identifier": "com.codexusagemonitor.desktop",
   "build": {
@@ -14,7 +14,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "Codex Usage Monitor",
+        "title": "Token Monitor",
         "width": 620,
         "height": 360,
         "minWidth": 480,
@@ -38,7 +38,7 @@
     "icon": ["icons/icon.png", "icons/icon.icns", "icons/icon.ico"],
     "targets": ["dmg", "app", "msi", "nsis"],
     "category": "DeveloperTool",
-    "shortDescription": "Monitor local Codex quota windows",
-    "longDescription": "A compact desktop widget that reads quota windows from the current local Codex sign-in session."
+    "shortDescription": "Monitor local Codex and Cursor usage",
+    "longDescription": "A compact desktop widget that reads usage limits from the current local Codex or Cursor sign-in session."
   }
 }

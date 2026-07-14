@@ -1,4 +1,4 @@
-# Codex Usage Monitor
+# Token Monitor
 
 一个面向 Windows / macOS 的紧凑型 Tauri 桌面悬浮组件，用来查看本机 **Codex**（5 小时 / 7 天）或 **Cursor**（Included / On-demand）额度。
 
@@ -83,7 +83,7 @@ Authorization: Bearer <local Cursor access token>
 
 ## 随 Codex CLI 启动
 
-包装器会优先唤起已安装的原生 Codex Usage Monitor；开发环境找不到已安装应用时，会回退到 `tauri:dev`，然后原样启动 Codex CLI：
+包装器会优先唤起已安装的原生 Token Monitor，并兼容旧版应用名称；开发环境找不到已安装应用时，会回退到 `tauri:dev`，然后原样启动 Codex CLI：
 
 ```bash
 npm run codex --
@@ -112,8 +112,8 @@ npm run tauri:build
 创建新版本时，先将 `package.json`、`src-tauri/tauri.conf.json` 和 `src-tauri/Cargo.toml` 的版本保持一致，再推送对应标签。例如：
 
 ```bash
-git tag -a v1.0 -m "Codex Usage Monitor v1.0"
-git push origin v1.0
+git tag -a v1.1.0 -m "Token Monitor v1.1.0"
+git push origin v1.1.0
 ```
 
 ## 验证

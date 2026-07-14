@@ -16,7 +16,7 @@ const copy = {
     settingsKicker: '小组件设置', settingsTitle: '显示与启动', viewStyle: '展示样式', dualView: '双环', focusView: '聚焦',
     providerSource: '额度来源', providerSwitch: '额度来源',
     switchCodex: '切换到 Codex 额度', switchCursor: '切换到 Cursor 额度',
-    brandCodex: 'Codex Usage Monitor', brandCursor: 'Cursor Usage Monitor',
+    brand: 'Token Monitor',
     language: '界面语言', languageHelp: '中文 / English', alwaysTop: '始终置顶', alwaysTopHelp: '保持小组件浮在其他窗口上方',
     startLogin: '登录时启动', startLoginHelp: '进入系统后自动运行', privacy: '登录令牌只在 Rust 进程内读取，不会发送到前端、日志或导出文件。',
     switchView: '切换视图', refresh: '刷新额度', settings: '打开设置', close: '关闭设置',
@@ -44,7 +44,7 @@ const copy = {
     settingsKicker: 'Widget settings', settingsTitle: 'Display & startup', viewStyle: 'View style', dualView: 'Dual rings', focusView: 'Focus',
     providerSource: 'Usage source', providerSwitch: 'Usage source',
     switchCodex: 'Switch to Codex usage', switchCursor: 'Switch to Cursor usage',
-    brandCodex: 'Codex Usage Monitor', brandCursor: 'Cursor Usage Monitor',
+    brand: 'Token Monitor',
     language: 'Language', languageHelp: '中文 / English', alwaysTop: 'Always on top', alwaysTopHelp: 'Keep the widget above other windows',
     startLogin: 'Start at login', startLoginHelp: 'Launch after signing in to the computer', privacy: 'Sign-in tokens are read only inside the Rust process and never sent to the frontend, logs, or exports.',
     switchView: 'Switch view', refresh: 'Refresh usage', settings: 'Open settings', close: 'Close settings',
@@ -152,8 +152,8 @@ function syncProviderControls() {
     button.classList.toggle('active', active);
     button.setAttribute('aria-pressed', String(active));
   });
-  $('#brand-title').textContent = isCursor() ? t('brandCursor') : t('brandCodex');
-  document.title = isCursor() ? t('brandCursor') : t('brandCodex');
+  $('#brand-title').textContent = t('brand');
+  document.title = t('brand');
   $$('[data-i18n="fiveRemaining"]').forEach((el) => {
     el.textContent = isCursor() ? t('includedRemaining') : t('fiveRemaining');
   });
@@ -419,6 +419,7 @@ window.addEventListener('keydown', (event) => { if (event.key === 'Escape') open
 
 if (nativeInvoke) {
   invoke('set_always_on_top', { enabled: preferences.alwaysOnTop });
+  if (preferences.startAtLogin) invoke('set_start_at_login', { enabled: true });
   nativeListen?.('monitor:refresh', () => refresh({ manual: true }));
 }
 refresh();

@@ -32,10 +32,10 @@ jobs:
 
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
@@ -60,13 +60,19 @@ jobs:
           APPLE_SIGNING_IDENTITY: ${{ runner.os == 'macOS' && '-' || '' }}
         with:
           tagName: ${{ github.ref_name }}
-          releaseName: Codex Usage Monitor ${{ github.ref_name }}
+          releaseName: Token Monitor ${{ github.ref_name }}
           releaseBody: |
+            Token Monitor ${{ github.ref_name }} 支持读取当前本机 Codex 和 Cursor 登录态的额度信息。
+
             下载对应平台的安装包：
             - macOS：Universal DMG（Apple Silicon + Intel）
             - Windows：x64 MSI 或 NSIS Setup EXE
 
+            Codex 与 Cursor 数据均来自非公开稳定接口，服务端变更可能导致读取暂时不可用。Token Monitor 不会把本机登录令牌发送到 WebView、日志或导出文件。
+
             当前构建未经过 Apple 公证或 Windows 商业代码签名，系统可能显示安全确认提示。
+
+            从旧版升级：macOS 新应用名为 `Token Monitor.app`。确认新版本运行正常后，可删除旧的 `Codex Usage Monitor.app`；原有设置会继续保留。
           releaseDraft: false
           prerelease: false
           generateReleaseNotes: true

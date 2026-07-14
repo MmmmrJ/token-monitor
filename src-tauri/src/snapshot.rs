@@ -126,7 +126,11 @@ pub fn normalize_provider(provider: Option<&str>) -> &'static str {
     }
 }
 
-pub fn failure_snapshot(kind: &str, failure: ProviderFailure, auth_path_label: String) -> MonitorSnapshot {
+pub fn failure_snapshot(
+    kind: &str,
+    failure: ProviderFailure,
+    auth_path_label: String,
+) -> MonitorSnapshot {
     let (display_name, source) = match kind {
         "cursor" => ("Local Cursor account", "local_cursor_session"),
         _ => ("Local Codex account", "local_codex_oauth"),
@@ -153,7 +157,10 @@ pub fn failure_snapshot(kind: &str, failure: ProviderFailure, auth_path_label: S
 
 pub fn connected_state(windows: &QuotaWindows) -> (&'static str, String) {
     if windows.five_hour.is_some() && windows.seven_day.is_some() {
-        ("connected", "Live limits from the local sign-in session.".into())
+        (
+            "connected",
+            "Live limits from the local sign-in session.".into(),
+        )
     } else {
         (
             "partial",
