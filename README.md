@@ -1,16 +1,16 @@
 # Codex Usage Monitor
 
-一个面向 Windows / macOS 的紧凑型 Tauri 桌面悬浮组件，用来查看**当前本机 Codex 登录账户**返回的 5 小时额度、7 天额度和重置时间。
+一个面向 Windows / macOS 的紧凑型 Tauri 桌面悬浮组件，用来查看本机 **Codex**（5 小时 / 7 天）或 **Cursor**（Included / On-demand）额度。
 
 ## 当前能力
 
-- 自动读取 `$CODEX_HOME/auth.json`，未设置时读取 `~/.codex/auth.json`。
-- 使用本机 Codex OAuth 登录态查询额度；无需再填写 Admin API Key。
-- 按 `limit_window_seconds` 识别 5 小时（18,000 秒）和 7 天（604,800 秒）窗口，不依赖 API 字段顺序。
-- 同时提供「双环」与「5 小时聚焦」两套 UI，右上角按钮或设置面板可即时切换并记住选择。
-- 显示各窗口剩余百分比、准确重置时间和最近窗口的倒计时。
+- 标题栏 Codex / Cursor 商标图标快切，设置面板同源切换；选择会持久化。
+- **Codex**：自动读取 `$CODEX_HOME/auth.json`，未设置时读取 `~/.codex/auth.json`；按 `limit_window_seconds` 识别 5 小时与 7 天窗口。
+- **Cursor**：只读本机 `state.vscdb` 登录态，查询周期 Included 与 On-demand 额度；无需粘贴 Cookie 或 API Key。
+- 同时提供「双环」与「聚焦」两套 UI，右上角按钮或设置面板可即时切换并记住选择。
+- 显示各窗口剩余百分比、重置时间（Cursor 可附带美元/请求用量提示）和最近窗口倒计时。
 - 某个窗口未下发时明确显示“当前账户未提供”，不会填充 Demo 或推算数据。
-- 60 秒自动刷新，手动刷新有 10 秒防抖；失败时保留本次运行中的最后成功快照。
+- 60 秒自动刷新，手动刷新有 10 秒防抖；失败时按 Provider 保留本次运行中的最后成功快照。
 - 无边框透明窗口、28px 圆角、标题栏拖动、四边/四角原生缩放、始终置顶、登录时启动、托盘摘要和窗口位置恢复。
 - 中文 / English 完整切换。
 
@@ -41,15 +41,17 @@ npm run start
 
 浏览器中的普通地址不会读取本机登录文件；`?preview=1` 只用于本地设计验收，并会明确标记“设计预览数据”。真实数据只在 Tauri 桌面进程中启用。
 
-## 如何切换两种 UI
+## 如何切换 Provider 与 UI
 
-- 点击标题栏右上角第一个布局按钮，在「双环」和「聚焦」之间快速切换。
-- 或点击齿轮，在“展示样式”中直接选择。
-- 选择保存在本机 Local Storage 中，重启后自动恢复。
+- 标题栏布局按钮左侧的 Codex / Cursor 商标图标：一点即切换额度来源并刷新。
+- 或点击齿轮，在“额度来源”中选择；与标题栏状态同步。
+- 布局按钮在「双环」和「聚焦」之间切换；选择与 Provider 一并保存在本机 Local Storage，重启后自动恢复。
 
 ## 数据与安全边界
 
-本版本应用户要求，不再局限于公开的组织 Usage API。它采用 Codex 客户端正在使用的本机 OAuth 登录态和额度端点：
+本应用读取本机登录态并调用各客户端正在使用的额度端点。这些端点**不是**承诺长期稳定的公开第三方 API，提供方可能随时调整响应或鉴权。
+
+### Codex
 
 ```text
 GET https://chatgpt.com/backend-api/wham/usage
@@ -57,13 +59,27 @@ Authorization: Bearer <local Codex access token>
 ChatGPT-Account-Id: <local account id>
 ```
 
-这是 Codex 客户端内部使用的数据面，不是承诺长期稳定的公开第三方 API，OpenAI 可能随时调整响应或鉴权。项目采取以下限制：
+- Token 仅由 Rust 从 `auth.json` 临时读取；不写回、不刷新该文件。
+- 仅信任 `https://chatgpt.com` / `https://chat.openai.com`。
+- 401/403 时提示重新执行 `codex login`。
 
-- Token 仅由 Rust 进程从 `auth.json` 临时读取；前端、日志、托盘和导出内容均拿不到 Token。
+### Cursor
+
+```text
+POST https://api2.cursor.sh/aiserver.v1.DashboardService/GetCurrentPeriodUsage
+Authorization: Bearer <local Cursor access token>
+```
+
+- Token 仅由 Rust 从 Cursor `state.vscdb` **只读**读取；前端、日志、托盘均拿不到 Token。
+- Access token 过期时，可在内存内用 refresh token 调用 `/oauth/token`，**不会**写回 SQLite。
+- 仅信任 `https://api2.cursor.sh`。
+- 401/403 或 refresh 失败时提示在 Cursor 中重新登录。
+
+### 共性
+
 - 不读取浏览器 Cookie，不抓取网页，不保存或复制 access/refresh token。
-- 首版不会刷新或改写 `auth.json`；遇到 401/403 时提示用户重新执行 `codex login`。
-- 只信任 `https://chatgpt.com` / `https://chat.openai.com` 的 HTTPS 地址，避免把 Token 发送给任意自定义主机。
-- 不切换账户，不替换全局 Codex 会话，不修改 Shell 配置。
+- 不切换账户，不修改全局 Codex / Cursor / Shell 配置。
+- Codex / Cursor 商标仅用于来源识别，归属各自权利人。
 
 ## 随 Codex CLI 启动
 

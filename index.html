@@ -12,10 +12,18 @@
       <header class="widget-header" id="drag-handle" data-tauri-drag-region>
         <div class="brand" data-tauri-drag-region>
           <img src="./src-tauri/icons/icon.svg" alt="" />
-          <strong>Codex Usage Monitor</strong>
+          <strong id="brand-title">Codex Usage Monitor</strong>
           <span class="account-pill" id="account-pill"><i></i><span id="account-pill-copy">本机账户</span></span>
         </div>
         <div class="header-actions">
+          <div class="provider-switch" id="provider-switch" role="group" aria-label="额度来源">
+            <button class="icon-button provider-button is-active" id="provider-codex" type="button" data-provider="codex" aria-pressed="true" aria-label="切换到 Codex 额度" title="Codex">
+              <span class="brand-mark brand-mark-codex" aria-hidden="true"></span>
+            </button>
+            <button class="icon-button provider-button" id="provider-cursor" type="button" data-provider="cursor" aria-pressed="false" aria-label="切换到 Cursor 额度" title="Cursor">
+              <span class="brand-mark brand-mark-cursor" aria-hidden="true"></span>
+            </button>
+          </div>
           <button class="icon-button" id="view-button" type="button" aria-label="切换视图" title="切换视图"><i class="ph ph-layout" aria-hidden="true"></i></button>
           <button class="icon-button" id="refresh-button" type="button" aria-label="刷新额度" title="刷新额度"><i class="ph ph-arrows-clockwise" aria-hidden="true"></i></button>
           <button class="icon-button" id="settings-button" type="button" aria-label="打开设置" title="设置" aria-expanded="false"><i class="ph ph-gear-six" aria-hidden="true"></i></button>
@@ -85,6 +93,17 @@
             <div><strong id="source-account">本机 Codex 账户</strong><span id="source-detail">~/.codex/auth.json</span></div>
             <b id="source-plan">—</b>
           </div>
+          <fieldset class="provider-picker">
+            <legend data-i18n="providerSource">额度来源</legend>
+            <button type="button" data-provider="codex" class="active">
+              <span class="brand-mark brand-mark-codex" aria-hidden="true"></span>
+              <span>Codex</span>
+            </button>
+            <button type="button" data-provider="cursor">
+              <span class="brand-mark brand-mark-cursor" aria-hidden="true"></span>
+              <span>Cursor</span>
+            </button>
+          </fieldset>
           <fieldset class="view-picker">
             <legend data-i18n="viewStyle">展示样式</legend>
             <button type="button" data-view="dual"><i class="ph ph-circles-three-plus" aria-hidden="true"></i><span data-i18n="dualView">双环</span></button>

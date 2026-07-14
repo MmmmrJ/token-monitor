@@ -1,6 +1,6 @@
 [package]
 name = "codex-usage-monitor"
-version = "1.0.1"
+version = "1.1.0"
 description = "A privacy-first desktop monitor for authorized Codex usage data"
 authors = ["Codex Usage Monitor"]
 edition = "2021"
@@ -12,6 +12,7 @@ tauri-build = { version = "2", features = [] }
 base64 = "0.22"
 chrono = { version = "0.4", features = ["serde"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+rusqlite = { version = "0.32", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tauri = { version = "2", features = ["tray-icon", "macos-private-api"] }
