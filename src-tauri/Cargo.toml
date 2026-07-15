@@ -1,6 +1,6 @@
 [package]
 name = "codex-usage-monitor"
-version = "1.1.0"
+version = "1.1.1"
 description = "A privacy-first desktop monitor for local Codex and Cursor usage data"
 authors = ["Token Monitor"]
 edition = "2021"

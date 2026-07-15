@@ -19,6 +19,12 @@
   font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
+@property --progress {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 0;
+}
+
 * { box-sizing: border-box; }
 html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: transparent !important; }
 body { color: var(--text); -webkit-font-smoothing: antialiased; user-select: none; }
@@ -129,26 +135,38 @@ body:not(.tauri-host) {
   border-radius: 50%;
   background: conic-gradient(from 205deg, var(--cyan) 0%, var(--blue) calc(var(--progress) * .72%), var(--violet) calc(var(--progress) * 1%), var(--ring-track) 0 100%);
   box-shadow: 0 0 28px rgba(76, 126, 255, calc(var(--progress) / 700));
+  transition: --progress .55s cubic-bezier(.22, 1, .36, 1), box-shadow .55s ease;
 }
-.dial-ring::before, .focus-ring::before { content: ""; position: absolute; inset: 12px; border-radius: inherit; background: radial-gradient(circle at 50% 30%, #172238, #0d1422 68%); box-shadow: inset 0 1px rgba(255, 255, 255, .09); }
-.dial-core { position: relative; display: flex; flex-direction: column; align-items: center; gap: 5px; }
+.dial-ring::after, .focus-ring::after {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: conic-gradient(from 205deg, var(--cyan) 0%, var(--blue) calc(var(--progress) * .72%), var(--violet) calc(var(--progress) * 1%), transparent 0 100%);
+  animation: progress-glow 3.2s ease-in-out infinite;
+}
+.dial-ring::before, .focus-ring::before { content: ""; position: absolute; z-index: 1; inset: 12px; border-radius: inherit; background: radial-gradient(circle at 50% 30%, #172238, #0d1422 68%); box-shadow: inset 0 1px rgba(255, 255, 255, .09); }
+.dial-core { position: relative; z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 5px; }
 .quota-label { color: #bec6d8; font-size: 12px; font-weight: 650; letter-spacing: .01em; }
 .dial-core strong { color: #fff; font-size: 45px; font-weight: 780; line-height: .98; letter-spacing: -.065em; text-shadow: 0 4px 22px rgba(0, 0, 0, .4); }
 .dial-core time { overflow: hidden; max-width: 145px; margin-top: 2px; color: #aeb8cc; font-size: 9px; font-weight: 620; text-overflow: ellipsis; white-space: nowrap; }
 .dial-core small, .focus-ring small, .focus-secondary small { min-height: 0; color: var(--soft); font-size: 9px; font-weight: 600; }
 .dial-core small:empty { display: none; }
 .quota-dial.is-unavailable .dial-ring { background: conic-gradient(var(--ring-track) 0 100%); box-shadow: none; }
+.quota-dial.is-unavailable .dial-ring::after { animation: none; opacity: 0; }
 .quota-dial.is-unavailable .dial-core strong { color: #9aa5ba; }
 
 .focus-view { position: relative; display: grid; grid-template-columns: 1.45fr .9fr; grid-template-rows: 1fr 62px; padding: 8px 26px 0; }
 .focus-primary { display: grid; place-items: center; min-width: 0; }
 .focus-ring { width: min(220px, 38vw); }
-.focus-ring > div { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.focus-ring > div { position: relative; z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 4px; }
 .focus-ring strong { color: #fff; font-size: 58px; font-weight: 800; line-height: 1; letter-spacing: -.075em; }
 .focus-secondary { display: flex; min-width: 0; flex-direction: column; justify-content: center; padding: 0 6px 0 22px; border-left: 1px solid var(--line-soft); }
 .focus-secondary strong { margin: 10px 0 12px; color: #fff; font-size: 42px; font-weight: 780; line-height: 1; letter-spacing: -.065em; }
 .quota-rail { height: 8px; overflow: hidden; border-radius: 999px; background: var(--ring-track); }
-.quota-rail span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--cyan), var(--blue), var(--violet)); box-shadow: 0 0 12px rgba(96, 124, 255, .5); transition: width .4s ease; }
+.quota-rail span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--cyan), var(--blue), var(--violet), var(--cyan)); background-size: 220% 100%; box-shadow: 0 0 12px rgba(96, 124, 255, .5); animation: rail-gradient-flow 3.4s ease-in-out infinite alternate; transition: width .55s cubic-bezier(.22, 1, .36, 1); }
 .focus-secondary small { margin-top: 9px; }
 .next-reset { grid-column: 1 / -1; display: grid; grid-template-columns: 22px auto minmax(80px, 1fr) auto; align-items: center; gap: 9px; margin: 0 -26px; padding: 0 26px; border-top: 1px solid var(--line-soft); }
 .next-reset i { color: #7c91ff; font-size: 20px; }
@@ -195,9 +213,23 @@ body:not(.tauri-host) {
 .resize-se { right: 0; bottom: 0; cursor: nwse-resize; } .resize-sw { left: 0; bottom: 0; cursor: nesw-resize; }
 
 .is-loading .dial-ring, .is-loading .focus-ring { animation: breathe 1.4s ease-in-out infinite; }
+.is-loading .dial-ring::after, .is-loading .focus-ring::after, .is-loading .quota-rail span { animation: none; opacity: 0; }
 .reduce-motion *, .reduce-motion *::before, .reduce-motion *::after { animation: none !important; transition: none !important; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes breathe { 50% { opacity: .68; } }
+@keyframes progress-glow {
+  0%, 100% { opacity: .72; filter: saturate(.94) brightness(.98); }
+  50% { opacity: 1; filter: saturate(1.08) brightness(1.08); }
+}
+@keyframes rail-gradient-flow {
+  from { background-position: 0% 50%; }
+  to { background-position: 100% 50%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dial-ring, .focus-ring, .quota-rail span { transition: none !important; }
+  .dial-ring::after, .focus-ring::after, .quota-rail span { animation: none !important; }
+}
 
 @media (max-width: 530px) {
   .brand strong { max-width: 145px; }
