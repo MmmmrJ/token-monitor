@@ -7,7 +7,7 @@ use base64::{
     Engine as _,
 };
 use chrono::Utc;
-use reqwest::{Client, StatusCode};
+use reqwest::{redirect::Policy, Client, StatusCode, Url};
 use serde::Deserialize;
 use serde_json::Value;
 use std::{
@@ -49,7 +49,7 @@ pub struct UsageWindowResponse {
     pub used_percent: f64,
     pub limit_window_seconds: i64,
     pub reset_after_seconds: Option<i64>,
-    pub reset_at: i64,
+    pub reset_at: Option<i64>,
 }
 
 fn codex_home() -> Result<PathBuf, ProviderFailure> {
@@ -138,10 +138,37 @@ fn account_identity(tokens: &CodexTokens, response_plan: Option<&str>) -> Accoun
     AccountSummary { display_name, plan }
 }
 
-fn configured_usage_url(home: &Path) -> String {
+fn default_usage_url() -> Url {
+    Url::parse(DEFAULT_USAGE_URL).expect("the built-in Codex usage URL must be valid")
+}
+
+fn validated_usage_url(raw_base: &str) -> Option<Url> {
+    let mut url = Url::parse(raw_base.trim()).ok()?;
+    let allowed_host = url.host_str().is_some_and(|host| {
+        host.eq_ignore_ascii_case("chatgpt.com") || host.eq_ignore_ascii_case("chat.openai.com")
+    });
+    let allowed_path = matches!(url.path(), "" | "/" | "/backend-api" | "/backend-api/");
+
+    if url.scheme() != "https"
+        || !allowed_host
+        || !url.username().is_empty()
+        || url.password().is_some()
+        || url.port().is_some_and(|port| port != 443)
+        || url.query().is_some()
+        || url.fragment().is_some()
+        || !allowed_path
+    {
+        return None;
+    }
+
+    url.set_path("/backend-api/wham/usage");
+    Some(url)
+}
+
+fn configured_usage_url(home: &Path) -> Url {
     let config = match fs::read_to_string(home.join("config.toml")) {
         Ok(value) => value,
-        Err(_) => return DEFAULT_USAGE_URL.into(),
+        Err(_) => return default_usage_url(),
     };
 
     for raw_line in config.lines() {
@@ -152,28 +179,40 @@ fn configured_usage_url(home: &Path) -> String {
         if key.trim() != "chatgpt_base_url" {
             continue;
         }
-        let base = value.trim().trim_matches(['\'', '"']).trim_end_matches('/');
-        if base.starts_with("https://chatgpt.com") || base.starts_with("https://chat.openai.com") {
-            let normalized = if base.contains("/backend-api") {
-                base.to_string()
-            } else {
-                format!("{base}/backend-api")
-            };
-            return format!("{normalized}/wham/usage");
+        let base = value.trim().trim_matches(['\'', '"']);
+        if let Some(url) = validated_usage_url(base) {
+            return url;
         }
     }
 
-    DEFAULT_USAGE_URL.into()
+    default_usage_url()
 }
 
-pub fn quota_window(window: UsageWindowResponse) -> Option<QuotaWindow> {
-    let resets_at = chrono::DateTime::from_timestamp(window.reset_at, 0)?.to_rfc3339();
-    Some(QuotaWindow::from_percent(
+fn build_client() -> Result<Client, ProviderFailure> {
+    Client::builder()
+        .no_gzip()
+        .redirect(Policy::none())
+        .timeout(std::time::Duration::from_secs(20))
+        .build()
+        .map_err(|_| {
+            provider_failure(
+                "network_error",
+                "Could not initialize the secure usage connection.",
+            )
+        })
+}
+
+pub fn quota_window(window: UsageWindowResponse) -> QuotaWindow {
+    let resets_at = window
+        .reset_at
+        .and_then(|timestamp| chrono::DateTime::from_timestamp(timestamp, 0))
+        .map(|date| date.to_rfc3339());
+    QuotaWindow::from_percent(
         window.used_percent,
         window.limit_window_seconds,
         window.reset_after_seconds,
         resets_at,
-    ))
+    )
 }
 
 pub fn classify_windows(rate_limit: Option<RateLimitDetails>) -> QuotaWindows {
@@ -188,17 +227,14 @@ pub fn classify_windows(rate_limit: Option<RateLimitDetails>) -> QuotaWindows {
     {
         let duration = window.limit_window_seconds;
         let mapped = quota_window(window);
-        if mapped.is_none() {
-            continue;
-        }
         let distance_five =
             (duration - FIVE_HOURS_SECONDS).abs() as f64 / FIVE_HOURS_SECONDS as f64;
         let distance_week =
             (duration - SEVEN_DAYS_SECONDS).abs() as f64 / SEVEN_DAYS_SECONDS as f64;
         if distance_five <= 0.10 && result.five_hour.is_none() {
-            result.five_hour = mapped;
+            result.five_hour = Some(mapped);
         } else if distance_week <= 0.10 && result.seven_day.is_none() {
-            result.seven_day = mapped;
+            result.seven_day = Some(mapped);
         }
     }
     result
@@ -235,16 +271,7 @@ pub async fn fetch_local_snapshot() -> Result<MonitorSnapshot, ProviderFailure> 
             )
         })?;
 
-    let client = Client::builder()
-        .no_gzip()
-        .timeout(std::time::Duration::from_secs(20))
-        .build()
-        .map_err(|_| {
-            provider_failure(
-                "network_error",
-                "Could not initialize the secure usage connection.",
-            )
-        })?;
+    let client = build_client()?;
     let mut request = client
         .get(configured_usage_url(&home))
         .bearer_auth(access_token)
@@ -292,21 +319,143 @@ pub async fn fetch_local_snapshot() -> Result<MonitorSnapshot, ProviderFailure> 
     })?;
     let account = account_identity(&tokens, payload.plan_type.as_deref());
     let windows = classify_windows(payload.rate_limit);
-    let (state, message) = connected_state(&windows);
+    let availability = connected_state(&windows);
     let now = Utc::now().to_rfc3339();
     Ok(MonitorSnapshot {
         account,
         provider: ProviderStatus {
-            connected: true,
-            state: state.into(),
-            message,
             kind: "codex".into(),
             source: "local_codex_oauth".into(),
             auth_path_label: label,
+            availability,
+            error_kind: None,
         },
         windows,
         refreshed_at: Some(now.clone()),
         checked_at: now,
         cached: false,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::{
+        io::{Read, Write},
+        net::TcpListener,
+        sync::{
+            atomic::{AtomicBool, Ordering},
+            Arc,
+        },
+        thread,
+        time::{Duration, Instant},
+    };
+
+    #[test]
+    fn accepts_only_exact_codex_https_bases() {
+        for base in [
+            "https://chatgpt.com",
+            "https://chatgpt.com/",
+            "https://chatgpt.com/backend-api",
+            "https://chat.openai.com/backend-api/",
+            "https://CHATGPT.com:443",
+        ] {
+            let url = validated_usage_url(base).unwrap_or_else(|| panic!("rejected {base}"));
+            assert_eq!(url.path(), "/backend-api/wham/usage");
+        }
+
+        for base in [
+            "https://chatgpt.com.evil.example",
+            "https://chatgpt.com@evil.example",
+            "http://chatgpt.com",
+            "https://chatgpt.com:444",
+            "https://chat.openai.com.evil.example/backend-api",
+            "https://chatgpt.com/backend-api/wham/usage",
+            "https://chatgpt.com/backend-api?next=https://evil.example",
+            "https://chatgpt.com/backend-api#fragment",
+        ] {
+            assert!(validated_usage_url(base).is_none(), "accepted {base}");
+        }
+    }
+
+    #[test]
+    fn configured_url_falls_back_for_untrusted_base() {
+        let unique = format!(
+            "token-monitor-url-test-{}-{}",
+            std::process::id(),
+            Utc::now().timestamp_nanos_opt().unwrap_or_default()
+        );
+        let home = std::env::temp_dir().join(unique);
+        fs::create_dir_all(&home).expect("create temporary Codex home");
+        fs::write(
+            home.join("config.toml"),
+            "chatgpt_base_url = \"https://chatgpt.com.evil.example\"\n",
+        )
+        .expect("write config");
+
+        assert_eq!(configured_usage_url(&home).as_str(), DEFAULT_USAGE_URL);
+        fs::remove_dir_all(home).expect("remove temporary Codex home");
+    }
+
+    #[test]
+    fn client_never_follows_redirects() {
+        for status in [301_u16, 302, 307, 308] {
+            let target = TcpListener::bind("127.0.0.1:0").expect("bind redirect target");
+            target
+                .set_nonblocking(true)
+                .expect("set redirect target nonblocking");
+            let target_address = target.local_addr().expect("read redirect target address");
+            let target_hit = Arc::new(AtomicBool::new(false));
+            let target_hit_on_thread = Arc::clone(&target_hit);
+            let target_thread = thread::spawn(move || {
+                let deadline = Instant::now() + Duration::from_millis(400);
+                while Instant::now() < deadline {
+                    match target.accept() {
+                        Ok((mut stream, _)) => {
+                            target_hit_on_thread.store(true, Ordering::SeqCst);
+                            let _ = stream.write_all(
+                                b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+                            );
+                            return;
+                        }
+                        Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                            thread::sleep(Duration::from_millis(10));
+                        }
+                        Err(_) => return,
+                    }
+                }
+            });
+
+            let source = TcpListener::bind("127.0.0.1:0").expect("bind redirect source");
+            let source_address = source.local_addr().expect("read redirect source address");
+            let source_thread = thread::spawn(move || {
+                let (mut stream, _) = source.accept().expect("accept source request");
+                stream
+                    .set_read_timeout(Some(Duration::from_secs(1)))
+                    .expect("set source read timeout");
+                let mut request = [0_u8; 2048];
+                let _ = stream.read(&mut request);
+                let response = format!(
+                    "HTTP/1.1 {status} Redirect\r\nLocation: http://{target_address}/target\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+                );
+                stream
+                    .write_all(response.as_bytes())
+                    .expect("write redirect response");
+            });
+
+            let response = tauri::async_runtime::block_on(async {
+                build_client()
+                    .expect("build client")
+                    .get(format!("http://{source_address}/source"))
+                    .send()
+                    .await
+                    .expect("receive redirect response")
+            });
+
+            source_thread.join().expect("join redirect source");
+            target_thread.join().expect("join redirect target");
+            assert_eq!(response.status().as_u16(), status);
+            assert!(!target_hit.load(Ordering::SeqCst), "followed HTTP {status}");
+        }
+    }
 }

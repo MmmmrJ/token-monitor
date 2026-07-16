@@ -1,4 +1,13 @@
 import '@phosphor-icons/web/regular';
+import {
+  beginProviderRequest,
+  completeProviderRequest,
+  createProviderState,
+  finishProviderRequest,
+  nextResetWindow,
+  normalizeProvider,
+  shouldRenderProviderResponse
+} from './app-core.mjs';
 
 const nativeInvoke = window.__TAURI__?.core?.invoke;
 const nativeWindow = window.__TAURI__?.window?.getCurrentWindow?.();
@@ -10,9 +19,13 @@ const storageKey = 'codex-usage-monitor:widget:v2';
 const copy = {
   zh: {
     localAccount: '本机账户', fiveRemaining: '5 小时剩余', weekRemaining: '7 天剩余',
-    firstPartyRemaining: 'First-party 剩余', apiRemaining: 'API 剩余',
+    firstPartyRemaining: '订阅额度剩余', apiRemaining: 'API 额度剩余',
     nextReset: '下次重置', dualAria: '双环额度视图', focusAria: '聚焦额度视图',
-    loading: '正在读取', unavailable: '当前账户未提供', resets: '重置', justNow: '刚刚更新', cached: '缓存数据',
+    loading: '正在读取', unavailable: '当前账户未提供', resets: '重置', justNow: '刚刚更新', cached: '离线缓存',
+    live: '实时', partial: '部分可用', unavailableStatus: '暂不可用',
+    authMissingStatus: '未登录', authUnreadableStatus: '登录态不可读', authInvalidStatus: '登录态损坏',
+    reauthStatus: '登录过期', unsupportedStatus: '登录模式不支持', networkStatus: '网络异常',
+    serviceStatus: '服务异常', invalidStatus: '数据格式变化',
     settingsKicker: '小组件设置', settingsTitle: '显示与启动', viewStyle: '展示样式', dualView: '双环', focusView: '聚焦',
     providerSource: '额度来源', providerSwitch: '额度来源',
     switchCodex: '切换到 Codex 额度', switchCursor: '切换到 Cursor 额度',
@@ -26,6 +39,10 @@ const copy = {
     missingWeek: '已连接；当前账户暂未下发次额度窗口。',
     authMissing: '未找到本机 Codex 登录态，请先运行 codex login。',
     authMissingCursor: '未找到本机 Cursor 登录态，请先在 Cursor 中登录。',
+    authUnreadable: '本机 Codex 登录文件无法读取，请检查文件权限。',
+    authUnreadableCursor: '本机 Cursor 登录数据库无法读取，请检查文件权限。',
+    authInvalid: '本机 Codex 登录文件格式损坏，请重新运行 codex login。',
+    authInvalidCursor: '本机 Cursor 登录数据格式无效，请在 Cursor 中重新登录。',
     reauth: 'Codex 登录态已过期，请重新运行 codex login。',
     reauthCursor: 'Cursor 登录态已过期，请在 Cursor 中重新登录。',
     unsupportedAuth: '当前为 API Key 模式；请使用 ChatGPT 登录以读取订阅额度。',
@@ -40,7 +57,11 @@ const copy = {
     localAccount: 'Local account', fiveRemaining: '5-hour remaining', weekRemaining: '7-day remaining',
     firstPartyRemaining: 'First-party remaining', apiRemaining: 'API remaining',
     nextReset: 'Next reset', dualAria: 'Dual-ring quota view', focusAria: 'Focused quota view',
-    loading: 'Loading', unavailable: 'Not provided for this account', resets: 'reset', justNow: 'Updated just now', cached: 'Cached data',
+    loading: 'Loading', unavailable: 'Not provided for this account', resets: 'reset', justNow: 'Updated just now', cached: 'Offline cache',
+    live: 'Live', partial: 'Partial', unavailableStatus: 'Unavailable',
+    authMissingStatus: 'Signed out', authUnreadableStatus: 'Sign-in unreadable', authInvalidStatus: 'Sign-in damaged',
+    reauthStatus: 'Sign-in expired', unsupportedStatus: 'Unsupported sign-in', networkStatus: 'Network issue',
+    serviceStatus: 'Service issue', invalidStatus: 'Data format changed',
     settingsKicker: 'Widget settings', settingsTitle: 'Display & startup', viewStyle: 'View style', dualView: 'Dual rings', focusView: 'Focus',
     providerSource: 'Usage source', providerSwitch: 'Usage source',
     switchCodex: 'Switch to Codex usage', switchCursor: 'Switch to Cursor usage',
@@ -54,6 +75,10 @@ const copy = {
     missingWeek: 'Connected; this account did not return the secondary quota window.',
     authMissing: 'No local Codex sign-in was found. Run codex login first.',
     authMissingCursor: 'No local Cursor sign-in was found. Sign in to Cursor first.',
+    authUnreadable: 'The local Codex sign-in file could not be read. Check its permissions.',
+    authUnreadableCursor: 'The local Cursor session database could not be read. Check its permissions.',
+    authInvalid: 'The local Codex sign-in file is damaged. Run codex login again.',
+    authInvalidCursor: 'The local Cursor session data is invalid. Sign in to Cursor again.',
     reauth: 'The Codex sign-in has expired. Run codex login again.',
     reauthCursor: 'The Cursor sign-in has expired. Sign in to Cursor again.',
     unsupportedAuth: 'Codex is using API-key mode. Sign in with ChatGPT to read subscription limits.',
@@ -86,11 +111,16 @@ function loadPreferences() {
 }
 
 const preferences = loadPreferences();
-const state = { snapshot: null, refreshing: false, lastManualRefresh: 0, statusKey: '', statusTimer: null };
+const state = {
+  ...createProviderState(),
+  statusKey: '',
+  statusTimer: null
+};
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
 const t = (key) => copy[preferences.language][key] || key;
-const isCursor = () => preferences.provider === 'cursor';
+const isCursor = (provider = preferences.provider) => normalizeProvider(provider) === 'cursor';
+const currentSnapshot = () => state.snapshots[preferences.provider];
 
 function savePreferences() {
   localStorage.setItem(storageKey, JSON.stringify(preferences));
@@ -105,27 +135,27 @@ async function invoke(command, payload) {
   }
 }
 
-function defaultAuthLabel() {
-  return isCursor()
+function defaultAuthLabel(provider = preferences.provider) {
+  return isCursor(provider)
     ? (navigator.platform.toLowerCase().includes('win')
       ? '%APPDATA%\\Cursor\\User\\globalStorage\\state.vscdb'
       : '~/Library/Application Support/Cursor/User/globalStorage/state.vscdb')
     : '~/.codex/auth.json';
 }
 
-function previewSnapshot() {
+function previewSnapshot(provider = preferences.provider) {
   const now = Date.now();
   const quota = (remainingPercent, durationSeconds, resetMs, extras = {}) => ({
     remainingPercent, usedPercent: 100 - remainingPercent, durationSeconds,
     resetsAt: new Date(now + resetMs).toISOString(), resetAfterSeconds: Math.floor(resetMs / 1000),
     ...extras
   });
-  if (isCursor()) {
+  if (isCursor(provider)) {
     return {
       account: { displayName: 'bianchi@example.com', plan: 'pro' },
       provider: {
-        connected: true, state: 'preview', message: t('preview'), kind: 'cursor',
-        source: 'preview', authPathLabel: defaultAuthLabel()
+        availability: 'live', errorKind: null, kind: 'cursor',
+        source: 'preview', authPathLabel: defaultAuthLabel(provider)
       },
       windows: {
         fiveHour: quota(68, 2_592_000, 12 * 86400_000),
@@ -137,7 +167,7 @@ function previewSnapshot() {
   return {
     account: { displayName: 'bianchi@example.com', plan: 'plus' },
     provider: {
-      connected: true, state: 'preview', message: t('preview'), kind: 'codex',
+      availability: 'live', errorKind: null, kind: 'codex',
       source: 'preview', authPathLabel: '~/.codex/auth.json'
     },
     windows: { fiveHour: quota(72, 18_000, 3 * 3600_000 + 12 * 60_000), sevenDay: quota(68, 604_800, 4 * 86400_000) },
@@ -163,7 +193,7 @@ function syncProviderControls() {
 }
 
 function setProvider(provider, { persist = true, refreshData = true } = {}) {
-  const next = provider === 'cursor' ? 'cursor' : 'codex';
+  const next = normalizeProvider(provider);
   if (preferences.provider === next) {
     syncProviderControls();
     return;
@@ -172,9 +202,9 @@ function setProvider(provider, { persist = true, refreshData = true } = {}) {
   syncProviderControls();
   if (persist) savePreferences();
   if (refreshData) {
-    state.refreshing = false;
-    state.lastManualRefresh = 0;
-    refresh({ manual: true });
+    if (currentSnapshot()) renderSnapshot();
+    else renderLoadingState();
+    refresh({ provider: next, bypassDebounce: true });
   }
 }
 
@@ -266,6 +296,32 @@ function renderWindow(prefix, windowData) {
   if ($(`#${prefix}-reset`)) $(`#${prefix}-reset`).textContent = windowData ? formatReset(windowData) : '—';
 }
 
+function renderLoadingState() {
+  $('#monitor').classList.add('is-loading');
+  $('#monitor').ariaBusy = 'true';
+  setRing('#five-ring', null); setRing('#week-ring', null); setRing('#focus-ring', null);
+  renderWindow('five', null); renderWindow('week', null);
+  $('[data-window="fiveHour"]').classList.remove('is-unavailable');
+  $('[data-window="sevenDay"]').classList.remove('is-unavailable');
+  $('#five-state').textContent = t('loading');
+  $('#week-state').textContent = t('loading');
+  $('#focus-five-percent').textContent = '—';
+  $('#focus-week-percent').textContent = '—';
+  $('#focus-five-state').textContent = t('loading');
+  $('#focus-week-state').textContent = t('loading');
+  $('#focus-week-rail').style.width = '0%';
+  $('#next-countdown').textContent = '—';
+  $('#next-reset-time').textContent = '—';
+  const pill = $('#account-pill');
+  pill.classList.remove('is-error', 'is-stale', 'is-warning');
+  $('#account-pill-copy').textContent = t('loading');
+  $('#source-account').textContent = isCursor() ? t('unknownAccountCursor') : t('unknownAccount');
+  $('#source-plan').textContent = '—';
+  $('#source-detail').textContent = defaultAuthLabel();
+  $('#source-status').textContent = t('loading');
+  showStatus('');
+}
+
 function showStatus(message, error = false) {
   const banner = $('#status-banner');
   if (!message) {
@@ -284,33 +340,68 @@ function showStatus(message, error = false) {
   state.statusTimer = setTimeout(() => { banner.hidden = true; }, 3_000);
 }
 
-function localizedProviderMessage(provider, five, week) {
+function providerErrorCopyKey(errorKind, cursor, short = false) {
+  const shortKeys = {
+    auth_missing: 'authMissingStatus', auth_unreadable: 'authUnreadableStatus',
+    auth_invalid: 'authInvalidStatus', reauth_required: 'reauthStatus',
+    unsupported_auth: 'unsupportedStatus', network_error: 'networkStatus',
+    service_error: 'serviceStatus', invalid_response: 'invalidStatus',
+    desktop_required: 'unavailableStatus'
+  };
+  const detailKeys = {
+    auth_missing: cursor ? 'authMissingCursor' : 'authMissing',
+    auth_unreadable: cursor ? 'authUnreadableCursor' : 'authUnreadable',
+    auth_invalid: cursor ? 'authInvalidCursor' : 'authInvalid',
+    reauth_required: cursor ? 'reauthCursor' : 'reauth',
+    unsupported_auth: 'unsupportedAuth', network_error: 'networkError',
+    service_error: 'serviceError', invalid_response: 'invalidResponse',
+    desktop_required: 'nativeOnly'
+  };
+  return (short ? shortKeys : detailKeys)[errorKind];
+}
+
+function providerHealthLabel(snapshot) {
+  const provider = snapshot.provider || {};
+  if (snapshot.cached) return t('cached');
+  const errorKey = providerErrorCopyKey(provider.errorKind, provider.kind === 'cursor', true);
+  if (errorKey) return t(errorKey);
+  if (provider.availability === 'live') return t('live');
+  if (provider.availability === 'partial') return t('partial');
+  return t('unavailableStatus');
+}
+
+function providerHealthDetail(snapshot) {
+  const label = providerHealthLabel(snapshot);
+  const provider = snapshot.provider || {};
+  if (!snapshot.cached || !provider.errorKind) return label;
+  const errorKey = providerErrorCopyKey(provider.errorKind, provider.kind === 'cursor', true);
+  return errorKey ? `${label} · ${t(errorKey)}` : label;
+}
+
+function localizedProviderMessage(snapshot, five, week) {
+  const provider = snapshot.provider || {};
   if (previewMode) return t('preview');
-  if (provider.state === 'connected') return '';
-  if (provider.state === 'partial') {
+  const cursor = provider.kind === 'cursor' || isCursor();
+  const errorKey = providerErrorCopyKey(provider.errorKind, cursor);
+  if (snapshot.cached) {
+    return errorKey ? `${t('staleNotice')} ${t(errorKey)}` : t('staleNotice');
+  }
+  if (errorKey) return t(errorKey);
+  if (provider.availability === 'live') return '';
+  if (provider.availability === 'partial') {
     if (!five && week) return t('missingFive');
     if (five && !week) return t('missingWeek');
     return t('missingBoth');
   }
-  const cursor = provider.kind === 'cursor' || isCursor();
-  const mapped = {
-    auth_missing: cursor ? 'authMissingCursor' : 'authMissing',
-    auth_unreadable: cursor ? 'authMissingCursor' : 'authMissing',
-    auth_invalid: cursor ? 'authMissingCursor' : 'authMissing',
-    reauth_required: cursor ? 'reauthCursor' : 'reauth',
-    unsupported_auth: 'unsupportedAuth',
-    network_error: 'networkError',
-    service_error: 'serviceError',
-    invalid_response: 'invalidResponse',
-    stale: 'staleNotice',
-    desktop_required: 'nativeOnly'
-  }[provider.state];
-  return mapped ? t(mapped) : (provider.message || '');
+  return t('missingBoth');
 }
 
 function renderSnapshot() {
-  const snapshot = state.snapshot;
-  if (!snapshot) return;
+  const snapshot = currentSnapshot();
+  if (!snapshot) {
+    renderLoadingState();
+    return;
+  }
   const five = snapshot.windows?.fiveHour || null;
   const week = snapshot.windows?.sevenDay || null;
   const provider = snapshot.provider || {};
@@ -318,9 +409,11 @@ function renderSnapshot() {
   $('#monitor').classList.remove('is-loading');
   $('#monitor').ariaBusy = 'false';
   const pill = $('#account-pill');
-  pill.classList.toggle('is-error', !provider.connected && provider.state !== 'stale');
-  pill.classList.toggle('is-stale', provider.state === 'stale');
-  $('#account-pill-copy').textContent = provider.state === 'stale' ? t('cached') : t('localAccount');
+  const hasError = Boolean(provider.errorKind);
+  pill.classList.toggle('is-error', hasError && !snapshot.cached);
+  pill.classList.toggle('is-stale', snapshot.cached);
+  pill.classList.toggle('is-warning', !hasError && provider.availability !== 'live');
+  $('#account-pill-copy').textContent = providerHealthLabel(snapshot);
 
   setRing('#five-ring', five); setRing('#week-ring', week); setRing('#focus-ring', five);
   renderWindow('five', five); renderWindow('week', week);
@@ -332,43 +425,74 @@ function renderSnapshot() {
 
   $('[data-window="fiveHour"]').classList.toggle('is-unavailable', !five);
   $('[data-window="sevenDay"]').classList.toggle('is-unavailable', !week);
-  const next = [five, week].filter(Boolean).sort((a, b) => Date.parse(a.resetsAt) - Date.parse(b.resetsAt))[0] || null;
+  const next = nextResetWindow(snapshot.windows);
   $('#next-countdown').textContent = countdown(next);
-  $('#next-reset-time').textContent = formatReset(next);
+  $('#next-reset-time').textContent = next ? formatReset(next) : '—';
 
   const unknown = isCursor() ? t('unknownAccountCursor') : t('unknownAccount');
   $('#source-account').textContent = snapshot.account?.displayName || unknown;
   $('#source-plan').textContent = snapshot.account?.plan || '—';
   $('#source-detail').textContent = provider.authPathLabel || defaultAuthLabel();
+  $('#source-status').textContent = providerHealthDetail(snapshot);
 
-  const message = localizedProviderMessage(provider, five, week);
-  showStatus(message, !provider.connected && provider.state !== 'stale' && !previewMode);
+  const message = localizedProviderMessage(snapshot, five, week);
+  pill.title = message || providerHealthDetail(snapshot);
+  showStatus(message, hasError && !snapshot.cached && !previewMode);
 }
 
-async function refresh({ manual = false } = {}) {
-  if (state.refreshing) return;
-  if (manual && Date.now() - state.lastManualRefresh < 10_000) return;
-  if (manual) state.lastManualRefresh = Date.now();
-  state.refreshing = true;
-  $('#refresh-button').classList.add('is-spinning');
+function unavailableSnapshot(provider, errorKind) {
+  const now = new Date().toISOString();
+  return {
+    account: { displayName: isCursor(provider) ? t('unknownAccountCursor') : t('unknownAccount'), plan: '—' },
+    provider: {
+      availability: 'unavailable', errorKind, kind: provider,
+      source: provider === 'cursor' ? 'local_cursor_session' : 'local_codex_oauth',
+      authPathLabel: defaultAuthLabel(provider)
+    },
+    windows: { fiveHour: null, sevenDay: null },
+    refreshedAt: null,
+    checkedAt: now,
+    cached: false
+  };
+}
+
+function syncRefreshIndicator() {
+  $('#refresh-button').classList.toggle('is-spinning', state.requests[preferences.provider].inFlight);
+}
+
+async function refresh({ manual = false, provider = preferences.provider, bypassDebounce = false } = {}) {
+  const requestedProvider = normalizeProvider(provider);
+  const requestId = beginProviderRequest(state, requestedProvider, { manual, bypassDebounce });
+  if (requestId == null) return;
+  syncRefreshIndicator();
   try {
-    if (previewMode) state.snapshot = previewSnapshot();
+    let snapshot;
+    if (previewMode) snapshot = previewSnapshot(requestedProvider);
     else if (nativeInvoke) {
-      state.snapshot = await invoke('refresh_monitor_data', { provider: preferences.provider });
+      try {
+        snapshot = await nativeInvoke('refresh_monitor_data', { provider: requestedProvider });
+      } catch {
+        const cached = state.snapshots[requestedProvider];
+        snapshot = cached
+          ? {
+              ...cached,
+              provider: { ...cached.provider, errorKind: 'service_error' },
+              checkedAt: new Date().toISOString(),
+              cached: true
+            }
+          : unavailableSnapshot(requestedProvider, 'service_error');
+      }
     } else {
-      state.snapshot = {
-        account: { displayName: isCursor() ? t('unknownAccountCursor') : t('unknownAccount'), plan: '—' },
-        provider: {
-          connected: false, state: 'desktop_required', message: t('nativeOnly'),
-          kind: preferences.provider, authPathLabel: defaultAuthLabel()
-        },
-        windows: { fiveHour: null, sevenDay: null }
-      };
+      snapshot = unavailableSnapshot(requestedProvider, 'desktop_required');
     }
-    renderSnapshot();
+
+    completeProviderRequest(state, requestedProvider, requestId, snapshot);
+    if (shouldRenderProviderResponse(state, requestedProvider, requestId, preferences.provider)) {
+      renderSnapshot();
+    }
   } finally {
-    state.refreshing = false;
-    $('#refresh-button').classList.remove('is-spinning');
+    finishProviderRequest(state, requestedProvider, requestId);
+    syncRefreshIndicator();
   }
 }
 
@@ -424,6 +548,6 @@ if (nativeInvoke) {
 }
 refresh();
 setInterval(() => {
-  if (state.snapshot) renderSnapshot();
+  if (currentSnapshot()) renderSnapshot();
 }, 30_000);
 setInterval(() => { if (nativeInvoke) refresh(); }, 60_000);

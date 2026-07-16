@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="dark light" />
     <title>Token Monitor</title>
+    <link rel="icon" href="./src-tauri/icons/icon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
@@ -90,7 +91,11 @@
           </div>
           <div class="source-card">
             <i class="ph ph-desktop-tower" aria-hidden="true"></i>
-            <div><strong id="source-account">本机 Codex 账户</strong><span id="source-detail">~/.codex/auth.json</span></div>
+            <div>
+              <strong id="source-account">本机 Codex 账户</strong>
+              <span id="source-detail">~/.codex/auth.json</span>
+              <small id="source-status" role="status">正在读取</small>
+            </div>
             <b id="source-plan">—</b>
           </div>
           <fieldset class="provider-picker">

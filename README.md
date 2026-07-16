@@ -24,9 +24,9 @@ Codex 与 Cursor 都会根据账户方案提供不同的用量窗口，但开发
 
 - 标题栏快速切换 Codex / Cursor Provider，并与设置面板保持同步。
 - Codex 显示 5 小时和 7 天额度窗口。
-- Cursor 显示 First-party（Included）和 API（On-demand）用量。
+- Cursor 中文界面显示订阅额度（First-party）和 API 额度（API）用量。
 - 提供 `.dual-view` 双环视图和 `.focus-view` 聚焦视图，选择会在重启后恢复。
-- 显示剩余百分比、重置时间、最近窗口倒计时和 Provider 状态。
+- 显示剩余百分比、重置时间、最近窗口倒计时，以及实时、部分可用、离线缓存和具体失败原因。
 - 渐变圆环和横向进度条平滑更新，并遵循系统“减少动态效果”设置。
 - 60 秒自动刷新、手动刷新防抖、Provider 独立的本次运行缓存。
 - 支持中文 / English、始终置顶、登录时启动、系统托盘和窗口位置恢复。
@@ -37,7 +37,7 @@ Codex 与 Cursor 都会根据账户方案提供不同的用量窗口，但开发
 | Provider | 本机登录来源 | 展示窗口 |
 | --- | --- | --- |
 | Codex | `$CODEX_HOME/auth.json` 或 `~/.codex/auth.json` | 5 小时、7 天 |
-| Cursor | `Cursor/User/globalStorage/state.vscdb` | First-party（Included）、API（On-demand） |
+| Cursor | `Cursor/User/globalStorage/state.vscdb` | 订阅额度（First-party）、API 额度（API） |
 
 应用只会展示服务端真实返回的可识别窗口。账户没有下发某个窗口时，该位置会显示“当前账户未提供”。
 
@@ -92,6 +92,7 @@ ChatGPT-Account-Id: <local account id>
 
 - Token 仅由 Rust 从本机 `auth.json` 临时读取，不写回或刷新该文件。
 - HTTPS 基址只允许 `chatgpt.com` 与 `chat.openai.com`。
+- 自定义基址必须精确匹配允许域名、默认 HTTPS 端口和 `/backend-api` 路径；请求禁止跟随重定向。
 - 401/403 时提示重新执行 `codex login`。
 
 ### Cursor
@@ -104,6 +105,8 @@ Authorization: Bearer <local Cursor access token>
 - Cursor SQLite 以只读方式打开；不会修改 `state.vscdb`。
 - Access token 过期时，只允许在内存中使用 refresh token 调用 `/oauth/token`，不会写回数据库。
 - 网络请求只发送到 `https://api2.cursor.sh`。
+- 主界面只映射 `planUsage.autoPercentUsed` 与 `planUsage.apiPercentUsed`；字段缺失时显示不可用，不使用金额、总百分比或 legacy 请求桶补数。
+- `billingCycleEnd` 缺失时显示“无重置时间”，不会生成当前时间或固定 30 天后的占位值。
 - 401/403 或刷新失败时提示在 Cursor 中重新登录。
 
 ### 共性约束
@@ -203,8 +206,11 @@ src-tauri/target/release/bundle/
 常规验证命令：
 
 ```bash
+npm test
+npm run check:versions
 npm run build
 cargo test --manifest-path src-tauri/Cargo.toml
+cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
 ```
 
 ## 自动发布到 GitHub
@@ -256,8 +262,11 @@ Rust 尚未安装或 `%USERPROFILE%\.cargo\bin` 没有进入当前终端的 PATH
 Pull Request 建议至少完成：
 
 ```bash
+npm test
+npm run check:versions
 npm run build
 cargo test --manifest-path src-tauri/Cargo.toml
+cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
 ```
 
 ## 声明

@@ -44,9 +44,22 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.rust-targets }}
+          components: rustfmt, clippy
 
       - name: Install frontend dependencies
         run: npm ci
+
+      - name: Run frontend tests
+        run: npm test
+
+      - name: Verify application versions
+        run: npm run check:versions
+
+      - name: Run Rust quality gates
+        run: |
+          cargo fmt --manifest-path src-tauri/Cargo.toml --check
+          cargo test --manifest-path src-tauri/Cargo.toml
+          cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
 
       - name: Verify tag matches app version
         shell: bash

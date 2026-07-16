@@ -10,6 +10,7 @@
 
 # Local visual QA artifacts
 /output/
+/.playwright-cli/
 
 # Test and coverage output
 /coverage/

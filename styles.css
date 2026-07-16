@@ -90,6 +90,7 @@ body:not(.tauri-host) {
 .account-pill i { width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 12px rgba(85, 226, 179, .85); }
 .account-pill.is-error i { background: var(--danger); box-shadow: 0 0 12px rgba(255, 130, 146, .7); }
 .account-pill.is-stale i { background: #f6c96b; box-shadow: 0 0 12px rgba(246, 201, 107, .7); }
+.account-pill.is-warning i { background: #f6c96b; box-shadow: 0 0 12px rgba(246, 201, 107, .7); }
 .header-actions { display: flex; align-items: center; gap: 4px; -webkit-app-region: no-drag; }
 .provider-switch { display: flex; align-items: center; gap: 2px; margin-right: 2px; padding: 2px; border: 1px solid var(--line-soft); border-radius: 12px; background: rgba(255, 255, 255, .03); }
 .provider-button { width: 30px; height: 30px; border-radius: 9px; opacity: .55; }
@@ -185,6 +186,7 @@ body:not(.tauri-host) {
 .source-card div { display: flex; min-width: 0; flex-direction: column; gap: 3px; }
 .source-card strong { overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .source-card span { color: var(--soft); font: 9px "SFMono-Regular", Consolas, monospace; }
+.source-card small { color: var(--muted); font-size: 9px; font-weight: 700; }
 .source-card b { padding: 4px 6px; border-radius: 6px; background: rgba(85, 226, 179, .1); color: #85e7c7; font-size: 8px; letter-spacing: .08em; text-transform: uppercase; }
 .view-picker, .provider-picker { display: grid; grid-template-columns: repeat(2, 1fr); gap: 7px; margin: 0; padding: 12px 0; border: 0; border-top: 1px solid var(--line-soft); }
 .view-picker legend, .provider-picker legend { grid-column: 1 / -1; float: none; width: 100%; margin-bottom: 1px; }

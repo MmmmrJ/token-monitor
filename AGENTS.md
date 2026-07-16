@@ -2,7 +2,7 @@
 
 ## 项目定位
 
-这是一个 Tauri v2 桌面悬浮组件。主任务是以最少视觉噪声显示当前本机账户额度：Codex 的 5 小时 / 7 天窗口，或 Cursor 的 First-party / API。主界面只保留两种可切换视图：`.dual-view` 与 `.focus-view`；标题栏提供 Codex / Cursor Provider 快切。
+这是一个 Tauri v2 桌面悬浮组件。主任务是以最少视觉噪声显示当前本机账户额度：Codex 的 5 小时 / 7 天窗口，或 Cursor 的 First-party / API。Cursor 中文 UI 使用“订阅额度 / API 额度”，English 使用“First-party / API”。主界面只保留两种可切换视图：`.dual-view` 与 `.focus-view`；标题栏提供 Codex / Cursor Provider 快切。
 
 ## 技术约束
 
@@ -15,8 +15,8 @@
 
 - `#drag-handle` 是唯一拖动区，标题栏按钮（含 `#provider-switch`）必须保持 `no-drag`。
 - `.resize-handle` 覆盖四边和四角，并调用 Tauri 原生 `startResizeDragging`。
-- 原生窗口最小尺寸为 `480 × 300`；透明画布与 `.widget-shell` 之间保留 12px 阴影空间。
-- `.widget-shell` 必须保持 28px 连续圆角、内容裁切和透明外部区域，禁止重新引入 `windowEffects` 造成白色角块。
+- 原生窗口最小尺寸为 `480 × 300`；`.widget-shell` 必须以 `100% × 100%`、`0px` 外边距贴合透明原生画布，不保留外围阴影空间。
+- `.widget-shell` 必须保持 28px 连续圆角和内容裁切；层次感使用内描边与内部高光，禁止外投影或 `windowEffects` 重新引入透明外框、白色角块。
 - `.dual-view` 与 `.focus-view` 共享同一份 Snapshot；切换视图不得触发伪刷新或改写数据。
 - Provider 切换会刷新当前来源数据；缓存按 provider 分桶，不得串用对方 stale 快照。
 - 中文 / English 必须覆盖新增文案、错误状态、Title 和无障碍名称。
@@ -45,6 +45,12 @@
 - 不读取浏览器 Cookie，不抓取网页，不切换账户，不修改全局 Codex/Cursor/Shell 配置。
 - 网络失败可显示该 Provider 本次运行中的最后成功快照。
 - 浏览器 `?preview=1` 仅用于设计 QA，必须清晰标为预览；普通浏览器模式不得伪装真实数据。
+
+## 提醒与发布默认值
+
+- 额度提醒默认只启用 10% 阈值；20% 与 5% 由用户主动选择。
+- Tauri updater artifact 必须签名并通过验证，否则不得发布应用内更新。
+- macOS Developer ID/notarization 与 Windows Authenticode 当前为可选增强项；未配置时允许发布 Stable，但 Release 与安装说明必须明确标记未签名/未公证并提供 SHA-256。
 
 ## 本地开发与验证
 

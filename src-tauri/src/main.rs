@@ -6,9 +6,8 @@
 mod providers;
 mod snapshot;
 
-use chrono::Utc;
 use providers::{fetch_snapshot, provider_failure_snapshot};
-use snapshot::{normalize_provider, MonitorSnapshot, MonitorState};
+use snapshot::{cached_failure_snapshot, normalize_provider, MonitorSnapshot, MonitorState};
 use tauri::{
     image::Image,
     menu::{Menu, MenuItem},
@@ -97,21 +96,15 @@ async fn refresh_monitor_data(
                 .map_err(|_| "Snapshot cache is unavailable".to_string())?
                 .get(&kind)
                 .cloned();
-            if let Some(mut cached) = cached {
-                cached.provider.connected = false;
-                cached.provider.state = "stale".into();
-                cached.provider.message =
-                    format!("{} Showing the last successful snapshot.", failure.message);
-                cached.checked_at = Utc::now().to_rfc3339();
-                cached.cached = true;
-                cached
+            if let Some(cached) = cached {
+                cached_failure_snapshot(cached, failure)
             } else {
                 provider_failure_snapshot(&kind, failure)
             }
         }
     };
 
-    if !snapshot.cached && snapshot.provider.connected {
+    if !snapshot.cached && snapshot.provider.error_kind.is_none() {
         state
             .snapshots
             .lock()
@@ -225,7 +218,7 @@ mod tests {
             used_percent: used,
             limit_window_seconds: duration,
             reset_after_seconds: Some(10),
-            reset_at,
+            reset_at: Some(reset_at),
         }
     }
 
@@ -253,8 +246,16 @@ mod tests {
 
     #[test]
     fn clamps_invalid_percentages() {
-        let mapped = quota_window(window(120.0, FIVE_HOURS_SECONDS, 1_800_000_000)).unwrap();
+        let mapped = quota_window(window(120.0, FIVE_HOURS_SECONDS, 1_800_000_000));
         assert_eq!(mapped.used_percent, 100.0);
         assert_eq!(mapped.remaining_percent, 0.0);
+    }
+
+    #[test]
+    fn preserves_codex_window_when_reset_is_missing() {
+        let mut response = window(25.0, FIVE_HOURS_SECONDS, 1_800_000_000);
+        response.reset_at = None;
+        let mapped = quota_window(response);
+        assert!(mapped.resets_at.is_none());
     }
 }

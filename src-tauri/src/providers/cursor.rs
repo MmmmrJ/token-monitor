@@ -3,10 +3,9 @@ use crate::snapshot::{
     ProviderStatus, QuotaWindow, QuotaWindows,
 };
 use chrono::{DateTime, Utc};
-use reqwest::{Client, StatusCode};
+use reqwest::{redirect::Policy, Client, StatusCode};
 use rusqlite::{types::ValueRef, Connection, OpenFlags};
 use serde::Deserialize;
-use serde_json::Value;
 use std::{
     env,
     path::{Path, PathBuf},
@@ -17,7 +16,6 @@ const CURSOR_API_BASE: &str = "https://api2.cursor.sh";
 const CURSOR_OAUTH_CLIENT_ID: &str = "KbZUR41cY7W6zRSdpSUJ7I7mLYBKOCmB";
 const USAGE_PATH: &str = "/aiserver.v1.DashboardService/GetCurrentPeriodUsage";
 const PLAN_INFO_PATH: &str = "/aiserver.v1.DashboardService/GetPlanInfo";
-const LEGACY_USAGE_PATH: &str = "/auth/usage";
 const OAUTH_TOKEN_PATH: &str = "/oauth/token";
 
 #[derive(Clone, Debug, Default)]
@@ -41,14 +39,10 @@ struct PeriodUsageResponse {
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct PlanUsage {
-    included_spend: Option<f64>,
-    remaining: Option<f64>,
-    limit: Option<f64>,
     /// First-party / Auto pool (Dashboard "First-party models").
     auto_percent_used: Option<f64>,
     /// API pool (Dashboard "API").
     api_percent_used: Option<f64>,
-    total_percent_used: Option<f64>,
 }
 
 /// On-demand spend caps; kept for response shape, not mapped into dual rings.
@@ -215,8 +209,7 @@ fn map_period_usage(payload: &PeriodUsageResponse) -> QuotaWindows {
         payload.billing_cycle_end.as_deref(),
     );
     let reset_after = reset_after_seconds(payload.billing_cycle_end.as_deref());
-    let resets_at = resets_at_rfc3339(payload.billing_cycle_end.as_deref())
-        .unwrap_or_else(|| Utc::now().to_rfc3339());
+    let resets_at = resets_at_rfc3339(payload.billing_cycle_end.as_deref());
 
     let mut windows = QuotaWindows::default();
 
@@ -238,136 +231,17 @@ fn map_period_usage(payload: &PeriodUsageResponse) -> QuotaWindows {
             percent,
             duration,
             reset_after,
-            resets_at.clone(),
+            resets_at,
         ));
     }
 
-    // Legacy fallback only when both percent pools are absent.
-    if windows.five_hour.is_none() && windows.seven_day.is_none() {
-        let limit = plan.limit.unwrap_or(0.0);
-        let used = if limit > 0.0 {
-            plan.included_spend
-                .or_else(|| plan.remaining.map(|remaining| (limit - remaining).max(0.0)))
-                .unwrap_or(0.0)
-        } else {
-            0.0
-        };
-        if let Some(window) = QuotaWindow::from_amounts(
-            used,
-            limit,
-            duration,
-            reset_after,
-            resets_at.clone(),
-            "usd_cents",
-        ) {
-            windows.five_hour = Some(window);
-        } else if let Some(percent) = plan.total_percent_used {
-            windows.five_hour = Some(QuotaWindow::from_percent(
-                percent,
-                duration,
-                reset_after,
-                resets_at,
-            ));
-        }
-    }
-
-    windows
-}
-
-pub fn map_legacy_usage(value: &Value) -> QuotaWindows {
-    let mut windows = QuotaWindows::default();
-    let start = value
-        .get("startOfMonth")
-        .and_then(|v| v.as_str())
-        .map(str::to_owned);
-    let resets_at = start
-        .as_deref()
-        .and_then(|raw| {
-            DateTime::parse_from_rfc3339(raw)
-                .ok()
-                .map(|dt| dt.with_timezone(&Utc) + chrono::Duration::days(30))
-        })
-        .map(|dt| dt.to_rfc3339())
-        .unwrap_or_else(|| Utc::now().to_rfc3339());
-    let reset_after = DateTime::parse_from_rfc3339(&resets_at)
-        .ok()
-        .map(|dt| (dt.with_timezone(&Utc) - Utc::now()).num_seconds().max(0));
-
-    let preferred = ["gpt-4", "gpt-4o", "claude-4", "default-model"];
-    let mut chosen: Option<(&str, f64, f64)> = None;
-
-    if let Some(obj) = value.as_object() {
-        for key in preferred {
-            if let Some(bucket) = obj.get(key) {
-                let max = bucket
-                    .get("maxRequestUsage")
-                    .and_then(|v| v.as_f64())
-                    .or_else(|| {
-                        bucket
-                            .get("maxRequestUsage")
-                            .and_then(|v| v.as_i64())
-                            .map(|v| v as f64)
-                    })
-                    .unwrap_or(0.0);
-                let used = bucket
-                    .get("numRequests")
-                    .and_then(|v| v.as_f64())
-                    .or_else(|| {
-                        bucket
-                            .get("numRequests")
-                            .and_then(|v| v.as_i64())
-                            .map(|v| v as f64)
-                    })
-                    .unwrap_or(0.0);
-                if max > 0.0 {
-                    chosen = Some((key, used, max));
-                    break;
-                }
-            }
-        }
-        if chosen.is_none() {
-            for (key, bucket) in obj {
-                if key == "startOfMonth" {
-                    continue;
-                }
-                let max = bucket
-                    .get("maxRequestUsage")
-                    .and_then(|v| v.as_f64())
-                    .or_else(|| {
-                        bucket
-                            .get("maxRequestUsage")
-                            .and_then(|v| v.as_i64())
-                            .map(|v| v as f64)
-                    })
-                    .unwrap_or(0.0);
-                let used = bucket
-                    .get("numRequests")
-                    .and_then(|v| v.as_f64())
-                    .or_else(|| {
-                        bucket
-                            .get("numRequests")
-                            .and_then(|v| v.as_i64())
-                            .map(|v| v as f64)
-                    })
-                    .unwrap_or(0.0);
-                if max > 0.0 {
-                    chosen = Some((key.as_str(), used, max));
-                    break;
-                }
-            }
-        }
-    }
-
-    if let Some((_key, used, max)) = chosen {
-        windows.five_hour =
-            QuotaWindow::from_amounts(used, max, 2_592_000, reset_after, resets_at, "requests");
-    }
     windows
 }
 
 fn build_client() -> Result<Client, ProviderFailure> {
     Client::builder()
         .no_gzip()
+        .redirect(Policy::none())
         .timeout(Duration::from_secs(20))
         .build()
         .map_err(|_| {
@@ -452,24 +326,6 @@ async fn post_dashboard_json(
         })
 }
 
-async fn get_legacy_usage(
-    client: &Client,
-    access_token: &str,
-) -> Result<reqwest::Response, ProviderFailure> {
-    client
-        .get(format!("{CURSOR_API_BASE}{LEGACY_USAGE_PATH}"))
-        .bearer_auth(access_token)
-        .header("Accept", "application/json")
-        .send()
-        .await
-        .map_err(|_| {
-            provider_failure(
-                "network_error",
-                "The Cursor usage service could not be reached. Check the network and try again.",
-            )
-        })
-}
-
 async fn fetch_with_token(
     client: &Client,
     access_token: &str,
@@ -484,22 +340,7 @@ async fn fetch_with_token(
             "The Cursor session has expired or is not authorized. Sign in to Cursor again.",
         ));
     }
-    if response.status().is_success() {
-        let payload: PeriodUsageResponse = response.json().await.map_err(|_| {
-            provider_failure(
-                "invalid_response",
-                "The Cursor usage response could not be understood.",
-            )
-        })?;
-        let windows = map_period_usage(&payload);
-        if windows.five_hour.is_some() || windows.seven_day.is_some() {
-            let plan_name = fetch_plan_name(client, access_token).await;
-            return Ok((windows, plan_name));
-        }
-    } else if !matches!(
-        response.status(),
-        StatusCode::NOT_FOUND | StatusCode::METHOD_NOT_ALLOWED
-    ) {
+    if !response.status().is_success() {
         return Err(provider_failure(
             "service_error",
             format!(
@@ -509,32 +350,15 @@ async fn fetch_with_token(
         ));
     }
 
-    let legacy = get_legacy_usage(client, access_token).await?;
-    if matches!(
-        legacy.status(),
-        StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN
-    ) {
-        return Err(provider_failure(
-            "reauth_required",
-            "The Cursor session has expired or is not authorized. Sign in to Cursor again.",
-        ));
-    }
-    if !legacy.status().is_success() {
-        return Err(provider_failure(
-            "service_error",
-            format!(
-                "The Cursor usage service returned HTTP {}.",
-                legacy.status().as_u16()
-            ),
-        ));
-    }
-    let value: Value = legacy.json().await.map_err(|_| {
+    let payload: PeriodUsageResponse = response.json().await.map_err(|_| {
         provider_failure(
             "invalid_response",
             "The Cursor usage response could not be understood.",
         )
     })?;
-    Ok((map_legacy_usage(&value), None))
+    let windows = map_period_usage(&payload);
+    let plan_name = fetch_plan_name(client, access_token).await;
+    Ok((windows, plan_name))
 }
 
 async fn fetch_plan_name(client: &Client, access_token: &str) -> Option<String> {
@@ -559,7 +383,9 @@ pub async fn fetch_local_snapshot() -> Result<MonitorSnapshot, ProviderFailure> 
     let result = fetch_with_token(&client, &auth.access_token).await;
     let (windows, plan_name) = match result {
         Ok(value) => value,
-        Err(failure) if failure.state == "reauth_required" => {
+        Err(failure)
+            if failure.error_kind == crate::snapshot::ProviderErrorKind::ReauthRequired =>
+        {
             let refresh = auth.refresh_token.as_deref().ok_or(failure)?;
             let new_token = refresh_access_token(&client, refresh).await?;
             auth.access_token = new_token;
@@ -568,7 +394,7 @@ pub async fn fetch_local_snapshot() -> Result<MonitorSnapshot, ProviderFailure> 
         Err(failure) => return Err(failure),
     };
 
-    let (state, message) = connected_state(&windows);
+    let availability = connected_state(&windows);
     let now = Utc::now().to_rfc3339();
     Ok(MonitorSnapshot {
         account: AccountSummary {
@@ -578,12 +404,11 @@ pub async fn fetch_local_snapshot() -> Result<MonitorSnapshot, ProviderFailure> 
                 .unwrap_or_else(|| "Cursor".into()),
         },
         provider: ProviderStatus {
-            connected: true,
-            state: state.into(),
-            message,
             kind: "cursor".into(),
             source: "local_cursor_session".into(),
             auth_path_label: label,
+            availability,
+            error_kind: None,
         },
         windows,
         refreshed_at: Some(now.clone()),
@@ -602,12 +427,8 @@ mod tests {
             billing_cycle_start: Some("1768399334000".into()),
             billing_cycle_end: Some("1771077734000".into()),
             plan_usage: Some(PlanUsage {
-                included_spend: Some(2000.0),
-                remaining: Some(0.0),
-                limit: Some(2000.0),
                 auto_percent_used: Some(32.0),
                 api_percent_used: Some(22.0),
-                total_percent_used: Some(30.0),
             }),
             spend_limit_usage: Some(SpendLimitUsage {
                 individual_limit: Some(0.0),
@@ -632,12 +453,8 @@ mod tests {
             billing_cycle_start: Some("1768399334000".into()),
             billing_cycle_end: Some("1771077734000".into()),
             plan_usage: Some(PlanUsage {
-                included_spend: Some(1000.0),
-                remaining: Some(9000.0),
-                limit: Some(10000.0),
                 auto_percent_used: Some(10.0),
                 api_percent_used: None,
-                total_percent_used: None,
             }),
             spend_limit_usage: None,
         };
@@ -647,37 +464,64 @@ mod tests {
     }
 
     #[test]
-    fn falls_back_to_dollar_when_percents_absent() {
-        let payload = PeriodUsageResponse {
-            billing_cycle_start: Some("1768399334000".into()),
-            billing_cycle_end: Some("1771077734000".into()),
-            plan_usage: Some(PlanUsage {
-                included_spend: Some(23222.0),
-                remaining: Some(16778.0),
-                limit: Some(40000.0),
-                auto_percent_used: None,
-                api_percent_used: None,
-                total_percent_used: Some(15.48),
-            }),
-            spend_limit_usage: None,
-        };
+    fn does_not_fall_back_to_money_or_total_percent() {
+        let payload: PeriodUsageResponse = serde_json::from_value(serde_json::json!({
+            "billingCycleStart": "1768399334000",
+            "billingCycleEnd": "1771077734000",
+            "planUsage": {
+                "includedSpend": 23222.0,
+                "remaining": 16778.0,
+                "limit": 40000.0,
+                "totalPercentUsed": 58.055
+            },
+            "spendLimitUsage": {
+                "individualLimit": 10000.0,
+                "individualUsed": 5000.0
+            }
+        }))
+        .expect("deserialize unrelated Cursor spend fields");
         let windows = map_period_usage(&payload);
-        let included = windows.five_hour.unwrap();
-        assert!((included.used_percent - 58.055).abs() < 0.01);
-        assert_eq!(included.unit.as_deref(), Some("usd_cents"));
+        assert!(windows.five_hour.is_none());
         assert!(windows.seven_day.is_none());
     }
 
     #[test]
-    fn maps_legacy_request_buckets() {
-        let value = serde_json::json!({
+    fn does_not_map_legacy_request_buckets() {
+        let payload: PeriodUsageResponse = serde_json::from_value(serde_json::json!({
             "gpt-4": { "numRequests": 150, "maxRequestUsage": 500 },
             "startOfMonth": "2026-03-01T00:00:00.000Z"
-        });
-        let windows = map_legacy_usage(&value);
-        let primary = windows.five_hour.unwrap();
-        assert_eq!(primary.used_percent, 30.0);
-        assert_eq!(primary.unit.as_deref(), Some("requests"));
+        }))
+        .expect("deserialize legacy-only response as an empty dashboard response");
+        let windows = map_period_usage(&payload);
+        assert!(windows.five_hour.is_none());
         assert!(windows.seven_day.is_none());
+    }
+
+    #[test]
+    fn preserves_missing_reset_time_as_null() {
+        let payload = PeriodUsageResponse {
+            billing_cycle_start: None,
+            billing_cycle_end: None,
+            plan_usage: Some(PlanUsage {
+                auto_percent_used: Some(15.0),
+                api_percent_used: None,
+            }),
+            spend_limit_usage: None,
+        };
+        let windows = map_period_usage(&payload);
+        let primary = windows.five_hour.expect("first-party window");
+        assert!(primary.resets_at.is_none());
+        assert!(primary.reset_after_seconds.is_none());
+    }
+
+    #[test]
+    fn rejects_target_field_type_changes() {
+        let result = serde_json::from_value::<PeriodUsageResponse>(serde_json::json!({
+            "planUsage": {
+                "autoPercentUsed": "32 percent",
+                "apiPercentUsed": 22.0
+            }
+        }));
+        assert!(result.is_err());
     }
 }
