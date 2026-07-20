@@ -515,7 +515,7 @@ dependencies = [
 
 [[package]]
 name = "codex-usage-monitor"
-version = "1.1.2"
+version = "1.1.3"
 dependencies = [
  "auto-launch",
  "base64 0.22.1",

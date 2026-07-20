@@ -68,7 +68,7 @@ Token Monitor 继续定位为一个轻量、低噪声、隐私优先的 Codex / 
 | 版本 | 主题 | 目标周期 | 发布门槛 |
 | --- | --- | --- | --- |
 | `v1.1.2` | 安全与数据可信度热修 | 1–2 周 | URL、Cursor 映射、竞态、重置时间、状态模型和 CI 完成 |
-| `v1.1.3` | 原生窗口与生命周期修复 | 1–2 周 | 0px 贴边画布、关闭到托盘、单实例和 autostart 迁移完成 |
+| `v1.1.3` | 原生窗口与生命周期修复 | 1–2 周 | 已实施；待跨平台发布验收（关闭到托盘、单实例、autostart 迁移） |
 | `v1.2.0` | 后台监控、托盘、提醒与更新引导 | 3–5 周 | 隐藏刷新、通知去重、Updater bootstrap 和性能达标 |
 | `v1.3.0` | 更新体验闭环与安全诊断 | 3–4 周 | v1.2.0 应用内升级、Release 完整且签名状态明确披露 |
 
@@ -90,7 +90,7 @@ Token Monitor 继续定位为一个轻量、低噪声、隐私优先的 Codex / 
 | macOS 本地验收 | 已完成 | Vite 构建、Tauri `.app` 打包、真实 Codex/Cursor 切换和 3 秒状态短条验证通过 |
 | Windows 与 Release | 待 CI | `v1.1.2` Tag 推送后构建 Windows MSI/NSIS 与 macOS Universal DMG，并检查 Release 资产 |
 
-当前自动化基线：前端测试 4 项、Rust 测试 16 项，`cargo clippy --all-targets -- -D warnings` 零警告。`v1.1.3`、`v1.2.0`、`v1.3.0` 尚未开始实现。
+当前自动化基线：前端测试 4 项、Rust 测试 25 项，`cargo clippy --all-targets -- -D warnings` 零警告。`v1.1.3` 代码已在 `codex/v1.1.3-lifecycle` 落地，待双平台 Quality/Release 验收后打 Stable Tag；`v1.2.0`、`v1.3.0` 尚未开始实现。
 
 ## 4. v1.1.2 — 安全与可信度热修
 
@@ -248,7 +248,7 @@ MonitorSnapshot.checkedAt          # 最近尝试时间
 - 用户可见及新注册名称统一为 `Token Monitor`，保留 `com.codexusagemonitor.desktop` identifier、内部二进制名和 localStorage 键。
 - 迁移时分别检测旧 `Codex Usage Monitor` 与新 `Token Monitor` 启动项；只要旧项或已保存偏好为启用，就先成功注册新项，再删除旧项。
 - 迁移必须幂等；新项注册失败时保留旧项，设置控件回滚并显示内联错误。
-- 使用应用配置中的一次性迁移标记记录完成状态，不依赖修改 Codex/Cursor 或 Shell 配置。
+- 旧启动项存在即表示迁移尚未完成，旧项成功删除即表示迁移完成；不新增 Store 插件或独立迁移配置文件。
 
 ### 5.4 v1.1.3 完成标准
 
@@ -256,6 +256,8 @@ MonitorSnapshot.checkedAt          # 最近尝试时间
 - Cmd+W/Alt+F4/关闭按钮隐藏到托盘，Cmd+Q/托盘退出真正结束进程。
 - 连续启动 10 次只有一个实例，已有窗口被显示并聚焦。
 - 从 v1.1.1 的旧 autostart 项升级后不重复启动，系统启动项显示 Token Monitor。
+
+**实施状态（2026-07-20）**：关闭到托盘、单实例与 autostart 迁移已在代码中完成，并附带纯决策单元测试；贴边画布与缩放作为回归项保留。跨平台 CI、Release 资产与手工生命周期验收通过前，不创建 `v1.1.3` Stable Tag。
 
 ## 6. v1.2.0 — 后台监控、托盘、额度提醒与更新引导
 
