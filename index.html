@@ -122,10 +122,11 @@
             <span><strong data-i18n="alwaysTop">始终置顶</strong><small data-i18n="alwaysTopHelp">保持小组件浮在其他窗口上方</small></span>
             <input id="always-on-top" type="checkbox" role="switch" />
           </label>
-          <label class="setting-row">
+          <label class="setting-row" id="start-at-login-row">
             <span><strong data-i18n="startLogin">登录时启动</strong><small data-i18n="startLoginHelp">进入系统后自动运行</small></span>
             <input id="start-at-login" type="checkbox" role="switch" />
           </label>
+          <p class="setting-inline-error" id="start-at-login-error" role="status" hidden></p>
           <p class="privacy-note"><i class="ph ph-shield-check" aria-hidden="true"></i><span data-i18n="privacy">登录令牌只在 Rust 进程内读取，不会发送到前端、日志或导出文件。</span></p>
         </div>
       </section>

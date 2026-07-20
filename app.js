@@ -32,6 +32,10 @@ const copy = {
     brand: 'Token Monitor',
     language: '界面语言', languageHelp: '中文 / English', alwaysTop: '始终置顶', alwaysTopHelp: '保持小组件浮在其他窗口上方',
     startLogin: '登录时启动', startLoginHelp: '进入系统后自动运行', privacy: '登录令牌只在 Rust 进程内读取，不会发送到前端、日志或导出文件。',
+    startLoginQueryFailed: '无法读取系统启动项状态，请稍后重试。',
+    startLoginEnableFailed: '无法创建 Token Monitor 启动项；已保留原有启动项。',
+    startLoginCleanupFailed: '新启动项已生效，但旧启动项清理失败。',
+    startLoginDisableFailed: '无法关闭系统启动项，请检查系统权限后重试。',
     switchView: '切换视图', refresh: '刷新额度', settings: '打开设置', close: '关闭设置',
     nativeOnly: '请运行桌面应用以读取本机登录态。',
     missingBoth: '已连接，但当前账户没有下发完整额度窗口。',
@@ -68,6 +72,10 @@ const copy = {
     brand: 'Token Monitor',
     language: 'Language', languageHelp: '中文 / English', alwaysTop: 'Always on top', alwaysTopHelp: 'Keep the widget above other windows',
     startLogin: 'Start at login', startLoginHelp: 'Launch after signing in to the computer', privacy: 'Sign-in tokens are read only inside the Rust process and never sent to the frontend, logs, or exports.',
+    startLoginQueryFailed: 'Could not read the system login item. Try again later.',
+    startLoginEnableFailed: 'Could not create the Token Monitor login item. The previous item was kept.',
+    startLoginCleanupFailed: 'The new login item is active, but the old item could not be removed.',
+    startLoginDisableFailed: 'Could not disable the system login item. Check permissions and try again.',
     switchView: 'Switch view', refresh: 'Refresh usage', settings: 'Open settings', close: 'Close settings',
     nativeOnly: 'Run the desktop app to read the local sign-in session.',
     missingBoth: 'Connected, but this account did not return complete quota windows.',
@@ -133,6 +141,63 @@ async function invoke(command, payload) {
     console.warn(`Native command ${command} failed`, error);
     return null;
   }
+}
+
+const autostartErrorKeys = {
+  query_failed: 'startLoginQueryFailed',
+  enable_failed: 'startLoginEnableFailed',
+  cleanup_failed: 'startLoginCleanupFailed',
+  disable_failed: 'startLoginDisableFailed'
+};
+
+let startAtLoginErrorKind = null;
+
+function setStartAtLoginBusy(busy) {
+  $('#start-at-login').disabled = busy;
+}
+
+function renderStartAtLoginError() {
+  const el = $('#start-at-login-error');
+  const key = startAtLoginErrorKind ? autostartErrorKeys[startAtLoginErrorKind] : null;
+  el.textContent = key ? t(key) : '';
+  el.hidden = !key;
+}
+
+function applyAutostartStatus(status) {
+  if (!status || typeof status.enabled !== 'boolean') return;
+  preferences.startAtLogin = status.enabled;
+  savePreferences();
+  $('#start-at-login').checked = status.enabled;
+  startAtLoginErrorKind = status.errorKind || null;
+  renderStartAtLoginError();
+}
+
+async function syncStartAtLogin(enabled) {
+  if (!nativeInvoke || previewMode) {
+    preferences.startAtLogin = enabled;
+    savePreferences();
+    $('#start-at-login').checked = enabled;
+    return;
+  }
+  setStartAtLoginBusy(true);
+  const status = await invoke('set_start_at_login', { enabled });
+  setStartAtLoginBusy(false);
+  if (status) applyAutostartStatus(status);
+  else {
+    $('#start-at-login').checked = preferences.startAtLogin;
+    startAtLoginErrorKind = 'query_failed';
+    renderStartAtLoginError();
+  }
+}
+
+async function initializeStartAtLogin() {
+  if (!nativeInvoke || previewMode) return;
+  setStartAtLoginBusy(true);
+  const status = await invoke('initialize_start_at_login', {
+    preferredEnabled: preferences.startAtLogin
+  });
+  setStartAtLoginBusy(false);
+  if (status) applyAutostartStatus(status);
 }
 
 function defaultAuthLabel(provider = preferences.provider) {
@@ -240,6 +305,7 @@ function setLanguage(language) {
   syncProviderControls();
   savePreferences();
   renderSnapshot();
+  renderStartAtLoginError();
 }
 
 function formatPercent(windowData) {
@@ -537,13 +603,13 @@ $('#always-on-top').addEventListener('change', (event) => {
   preferences.alwaysOnTop = event.target.checked; savePreferences(); invoke('set_always_on_top', { enabled: preferences.alwaysOnTop });
 });
 $('#start-at-login').addEventListener('change', (event) => {
-  preferences.startAtLogin = event.target.checked; savePreferences(); invoke('set_start_at_login', { enabled: preferences.startAtLogin });
+  syncStartAtLogin(event.target.checked);
 });
 window.addEventListener('keydown', (event) => { if (event.key === 'Escape') openSettings(false); });
 
-if (nativeInvoke) {
+if (nativeInvoke && !previewMode) {
   invoke('set_always_on_top', { enabled: preferences.alwaysOnTop });
-  if (preferences.startAtLogin) invoke('set_start_at_login', { enabled: true });
+  initializeStartAtLogin();
   nativeListen?.('monitor:refresh', () => refresh({ manual: true }));
 }
 refresh();

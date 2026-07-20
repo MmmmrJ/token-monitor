@@ -3,18 +3,21 @@
     windows_subsystem = "windows"
 )]
 
+mod autostart;
+mod lifecycle;
 mod providers;
 mod snapshot;
 
+use autostart::{initialize_start_at_login, set_start_at_login};
+use lifecycle::{show_main_window, LifecycleState};
 use providers::{fetch_snapshot, provider_failure_snapshot};
 use snapshot::{cached_failure_snapshot, normalize_provider, MonitorSnapshot, MonitorState};
 use tauri::{
     image::Image,
     menu::{Menu, MenuItem},
     tray::TrayIconBuilder,
-    AppHandle, Emitter, Manager, WebviewWindow,
+    AppHandle, Emitter, Manager, RunEvent, WindowEvent,
 };
-use tauri_plugin_autostart::ManagerExt;
 
 #[cfg(target_os = "macos")]
 fn tray_icon_image() -> tauri::Result<Image<'static>> {
@@ -125,26 +128,15 @@ async fn get_monitor_snapshot(
 }
 
 #[tauri::command]
-fn start_window_drag(window: WebviewWindow) -> Result<(), String> {
+fn start_window_drag(window: tauri::WebviewWindow) -> Result<(), String> {
     window.start_dragging().map_err(|error| error.to_string())
 }
 
 #[tauri::command]
-fn set_always_on_top(window: WebviewWindow, enabled: bool) -> Result<(), String> {
+fn set_always_on_top(window: tauri::WebviewWindow, enabled: bool) -> Result<(), String> {
     window
         .set_always_on_top(enabled)
         .map_err(|error| error.to_string())
-}
-
-#[tauri::command]
-fn set_start_at_login(app: AppHandle, enabled: bool) -> Result<(), String> {
-    let manager = app.autolaunch();
-    if enabled {
-        manager.enable()
-    } else {
-        manager.disable()
-    }
-    .map_err(|error| error.to_string())
 }
 
 fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
@@ -158,24 +150,19 @@ fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
         .tooltip("Token Monitor")
         .menu(&menu)
         .on_menu_event(|app, event| match event.id.as_ref() {
-            "show" => {
-                if let Some(window) = app.get_webview_window("main") {
-                    let _ = window.show();
-                    let _ = window.set_focus();
-                }
-            }
+            "show" => show_main_window(app),
             "refresh" => {
                 let _ = app.emit("monitor:refresh", ());
             }
-            "quit" => app.exit(0),
+            "quit" => {
+                app.state::<LifecycleState>().request_exit();
+                app.exit(0);
+            }
             _ => {}
         })
         .on_tray_icon_event(|tray, event| {
             if matches!(event, tauri::tray::TrayIconEvent::DoubleClick { .. }) {
-                if let Some(window) = tray.app_handle().get_webview_window("main") {
-                    let _ = window.show();
-                    let _ = window.set_focus();
-                }
+                show_main_window(tray.app_handle());
             }
         })
         .build(app)?;
@@ -183,11 +170,15 @@ fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
 }
 
 fn main() {
-    let autostart = tauri_plugin_autostart::Builder::new().app_name("Codex Usage Monitor");
+    let autostart = tauri_plugin_autostart::Builder::new().app_name(autostart::NEW_APP_NAME);
     #[cfg(target_os = "macos")]
     let autostart = autostart.macos_launcher(tauri_plugin_autostart::MacosLauncher::LaunchAgent);
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            show_main_window(app);
+        }))
+        .manage(LifecycleState::default())
         .manage(MonitorState::default())
         .plugin(autostart.build())
         .plugin(tauri_plugin_window_state::Builder::default().build())
@@ -200,10 +191,27 @@ fn main() {
             refresh_monitor_data,
             start_window_drag,
             set_always_on_top,
+            initialize_start_at_login,
             set_start_at_login
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running Token Monitor");
+        .build(tauri::generate_context!())
+        .expect("error while building Token Monitor")
+        .run(|app, event| match event {
+            RunEvent::ExitRequested { .. } => {
+                app.state::<LifecycleState>().request_exit();
+            }
+            RunEvent::WindowEvent {
+                label,
+                event: WindowEvent::CloseRequested { api, .. },
+                ..
+            } if label == "main" && !app.state::<LifecycleState>().is_exiting() => {
+                api.prevent_close();
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.hide();
+                }
+            }
+            _ => {}
+        });
 }
 
 #[cfg(test)]
