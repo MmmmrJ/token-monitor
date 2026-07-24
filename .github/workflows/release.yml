@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build-and-release:
+  build:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.platform }}
     timeout-minutes: 60
@@ -21,14 +21,16 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: macOS universal DMG
+          - name: macOS universal
             platform: macos-latest
             rust-targets: aarch64-apple-darwin,x86_64-apple-darwin
             args: --target universal-apple-darwin --bundles dmg
-          - name: Windows x64 MSI and NSIS
+            artifact: macos-universal
+          - name: Windows x64
             platform: windows-latest
             rust-targets: x86_64-pc-windows-msvc
             args: --target x86_64-pc-windows-msvc --bundles msi,nsis
+            artifact: windows-x64
 
     steps:
       - name: Check out source
@@ -66,29 +68,132 @@ jobs:
         run: |
           node -e 'const v=require("./package.json").version; const t=process.env.GITHUB_REF_NAME.replace(/^v/,"").split("."); while(t.length<3)t.push("0"); if(t.join(".")!==v){throw new Error(`Tag ${process.env.GITHUB_REF_NAME} does not match app version ${v}`)}'
 
-      - name: Build installers and publish GitHub Release
+      - name: Require updater signing secrets
+        shell: bash
+        run: |
+          if [ -z "${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}" ]; then
+            echo "TAURI_SIGNING_PRIVATE_KEY secret is required for updater artifacts"
+            exit 1
+          fi
+
+      - name: Build installers
         uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ runner.os == 'macOS' && '-' || '' }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: Token Monitor ${{ github.ref_name }}
-          releaseBody: |
-            Token Monitor ${{ github.ref_name }} 支持读取当前本机 Codex 和 Cursor 登录态的额度信息。
+          uploadUpdaterJson: false
+          releaseDraft: true
+          args: ${{ matrix.args }}
+
+      - name: Upload platform artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: |
+            src-tauri/target/**/release/bundle/**/*.dmg
+            src-tauri/target/**/release/bundle/**/*.msi
+            src-tauri/target/**/release/bundle/**/*setup.exe
+            src-tauri/target/**/release/bundle/**/*.exe
+            src-tauri/target/**/release/bundle/**/*.sig
+            src-tauri/target/**/release/bundle/**/*.app.tar.gz
+            src-tauri/target/**/release/bundle/**/*.nsis.zip
+          if-no-files-found: error
+
+  publish:
+    name: Aggregate release and latest.json
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Download macOS artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-universal
+          path: dist/macos
+
+      - name: Download Windows artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-x64
+          path: dist/windows
+
+      - name: Collect assets and build latest.json
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release-assets
+          find dist -type f \( -name '*.dmg' -o -name '*.msi' -o -name '*setup.exe' -o -name '*.sig' -o -name '*.app.tar.gz' \) -print0 | while IFS= read -r -d '' file; do
+            cp "$file" "release-assets/$(basename "$file")"
+          done
+          ls -la release-assets
+          node <<'NODE'
+          const fs = require('fs');
+          const path = require('path');
+          const root = 'release-assets';
+          const files = fs.readdirSync(root);
+          const version = process.env.GITHUB_REF_NAME.replace(/^v/, '');
+          const tag = process.env.GITHUB_REF_NAME;
+          const repo = process.env.GITHUB_REPOSITORY;
+          const base = `https://github.com/${repo}/releases/download/${tag}`;
+          const find = (rx) => files.find((name) => rx.test(name));
+          const platforms = {};
+          const appTar = find(/\.app\.tar\.gz$/);
+          const nsis = find(/setup\.exe$/);
+          if (!appTar) throw new Error('missing macOS updater archive (.app.tar.gz)');
+          if (!nsis) throw new Error('missing Windows NSIS setup.exe');
+          const appSig = `${appTar}.sig`;
+          const nsisSig = `${nsis}.sig`;
+          if (!files.includes(appSig)) throw new Error(`missing ${appSig}`);
+          if (!files.includes(nsisSig)) throw new Error(`missing ${nsisSig}`);
+          const darwin = {
+            url: `${base}/${appTar}`,
+            signature: fs.readFileSync(path.join(root, appSig), 'utf8').trim(),
+          };
+          platforms['darwin-aarch64'] = darwin;
+          platforms['darwin-x86_64'] = { ...darwin };
+          platforms['windows-x86_64'] = {
+            url: `${base}/${nsis}`,
+            signature: fs.readFileSync(path.join(root, nsisSig), 'utf8').trim(),
+          };
+          if (!files.some((name) => name.endsWith('.dmg'))) throw new Error('missing DMG');
+          if (!files.some((name) => name.endsWith('.msi'))) throw new Error('missing MSI');
+          const latest = {
+            version,
+            notes: `Token Monitor ${tag}`,
+            pub_date: new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'),
+            platforms,
+          };
+          fs.writeFileSync(path.join(root, 'latest.json'), `${JSON.stringify(latest, null, 2)}\n`);
+          console.log(JSON.stringify(latest, null, 2));
+          NODE
+          test -s release-assets/latest.json
+          ls release-assets/*.dmg >/dev/null
+          ls release-assets/*.msi >/dev/null
+          ls release-assets/*setup.exe >/dev/null
+          ls release-assets/*.app.tar.gz >/dev/null
+          ls release-assets/*.sig >/dev/null
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Token Monitor ${{ github.ref_name }}
+          body: |
+            Token Monitor ${{ github.ref_name }} 支持后台刷新、托盘摘要、额度提醒，以及可验签的应用内更新引导。
 
             下载对应平台的安装包：
             - macOS：Universal DMG（Apple Silicon + Intel）
             - Windows：x64 MSI 或 NSIS Setup EXE
 
-            Codex 与 Cursor 数据均来自非公开稳定接口，服务端变更可能导致读取暂时不可用。Token Monitor 不会把本机登录令牌发送到 WebView、日志或导出文件。
+            应用内更新使用 Tauri updater 签名校验。当前公开构建默认未配置 Apple 公证或 Windows 商业代码签名。
 
-            当前构建未经过 Apple 公证或 Windows 商业代码签名，系统可能显示安全确认提示。
-
-            从旧版升级：macOS 新应用名为 `Token Monitor.app`。确认新版本运行正常后，可删除旧的 `Codex Usage Monitor.app`；原有设置会继续保留。
-          releaseDraft: false
-          prerelease: false
-          generateReleaseNotes: true
-          uploadUpdaterJson: false
-          releaseAssetNamePattern: "[name]_[version]_[platform]_[arch][setup][ext]"
-          args: ${{ matrix.args }}
+            从 v1.1.x 升级：请先手动安装 v1.2.0；之后可通过应用内更新升级到后续版本。登录启动项名称继续为 Token Monitor。
+          files: release-assets/*
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

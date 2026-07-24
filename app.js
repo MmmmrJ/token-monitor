@@ -28,6 +28,16 @@ const copy = {
     serviceStatus: '服务异常', invalidStatus: '数据格式变化',
     settingsKicker: '小组件设置', settingsTitle: '显示与启动', viewStyle: '展示样式', dualView: '双环', focusView: '聚焦',
     providerSource: '额度来源', providerSwitch: '额度来源',
+    sectionDisplay: '显示与窗口', sectionAlerts: '额度提醒',
+    alertsEnabled: '启用额度提醒', alertsEnabledHelp: '低于阈值时发送系统通知',
+    alertThreshold10: '10% 阈值', alertThreshold10Help: '默认启用',
+    alertThreshold20: '20% 阈值', alertThreshold20Help: '可选',
+    alertThreshold5: '5% 阈值', alertThreshold5Help: '可选',
+    alertOnReset: '重置恢复提醒', alertOnResetHelp: '额度周期重置后提醒一次',
+    alertsDenied: '系统通知权限被拒绝，请在系统设置中允许后再开启。',
+    alertsSaveFailed: '无法保存提醒设置，已回滚。',
+    updateAvailable: '发现新版本', updateInstall: '下载并安装', updateLater: '稍后',
+    updateFailed: '检查或安装更新失败',
     switchCodex: '切换到 Codex 额度', switchCursor: '切换到 Cursor 额度',
     brand: 'Token Monitor',
     language: '界面语言', languageHelp: '中文 / English', alwaysTop: '始终置顶', alwaysTopHelp: '保持小组件浮在其他窗口上方',
@@ -67,6 +77,7 @@ const copy = {
     reauthStatus: 'Sign-in expired', unsupportedStatus: 'Unsupported sign-in', networkStatus: 'Network issue',
     serviceStatus: 'Service issue', invalidStatus: 'Data format changed',
     settingsKicker: 'Widget settings', settingsTitle: 'Display & startup', viewStyle: 'View style', dualView: 'Dual rings', focusView: 'Focus',
+    sectionDisplay: 'Display & window', sectionAlerts: 'Quota alerts',
     providerSource: 'Usage source', providerSwitch: 'Usage source',
     switchCodex: 'Switch to Codex usage', switchCursor: 'Switch to Cursor usage',
     brand: 'Token Monitor',
@@ -76,6 +87,15 @@ const copy = {
     startLoginEnableFailed: 'Could not create the Token Monitor login item. The previous item was kept.',
     startLoginCleanupFailed: 'The new login item is active, but the old item could not be removed.',
     startLoginDisableFailed: 'Could not disable the system login item. Check permissions and try again.',
+    alertsEnabled: 'Enable quota alerts', alertsEnabledHelp: 'Send a system notification below thresholds',
+    alertThreshold10: '10% threshold', alertThreshold10Help: 'Enabled by default',
+    alertThreshold20: '20% threshold', alertThreshold20Help: 'Optional',
+    alertThreshold5: '5% threshold', alertThreshold5Help: 'Optional',
+    alertOnReset: 'Notify on reset', alertOnResetHelp: 'Notify once when a quota cycle resets',
+    alertsDenied: 'Notification permission was denied. Alerts were turned off. Allow access in system settings, then try again.',
+    alertsSaveFailed: 'Could not save alert settings. Try again later.',
+    updateAvailable: 'Update available', updateInstall: 'Download & install', updateLater: 'Later',
+    updateFailed: 'Update check or install failed',
     switchView: 'Switch view', refresh: 'Refresh usage', settings: 'Open settings', close: 'Close settings',
     nativeOnly: 'Run the desktop app to read the local sign-in session.',
     missingBoth: 'Connected, but this account did not return complete quota windows.',
@@ -200,6 +220,156 @@ async function initializeStartAtLogin() {
   if (status) applyAutostartStatus(status);
 }
 
+function syncUiPreferences(extra = {}) {
+  if (!nativeInvoke || previewMode) return;
+  invoke('sync_ui_preferences', {
+    payload: {
+      provider: preferences.provider,
+      language: preferences.language,
+      view: preferences.view,
+      alwaysOnTop: preferences.alwaysOnTop,
+      ...extra
+    }
+  });
+}
+
+function defaultAlertPreferences() {
+  return {
+    enabled: false,
+    notificationDenied: false,
+    codex: {
+      fiveHour: { enabled: true, thresholdsRemaining: [10], notifyOnReset: true },
+      sevenDay: { enabled: true, thresholdsRemaining: [10], notifyOnReset: true }
+    },
+    cursor: {
+      fiveHour: { enabled: true, thresholdsRemaining: [10], notifyOnReset: true },
+      sevenDay: { enabled: true, thresholdsRemaining: [10], notifyOnReset: true }
+    }
+  };
+}
+
+let monitoringPreferences = defaultAlertPreferences();
+let alertsErrorKey = null;
+
+function setAlertsBusy(busy) {
+  ['#alerts-enabled', '#alert-threshold-20', '#alert-threshold-5', '#alert-on-reset']
+    .forEach((selector) => { const el = $(selector); if (el) el.disabled = busy || selector === '#alert-threshold-10'; });
+  $('#alert-threshold-10').disabled = true;
+}
+
+function renderAlertsError() {
+  const el = $('#alerts-error');
+  if (!el) return;
+  el.textContent = alertsErrorKey ? t(alertsErrorKey) : '';
+  el.hidden = !alertsErrorKey;
+}
+
+function applyMonitoringPreferences(prefs) {
+  if (!prefs) return;
+  monitoringPreferences = prefs;
+  $('#alerts-enabled').checked = Boolean(prefs.enabled);
+  const thresholds = new Set([
+    ...(prefs.codex?.fiveHour?.thresholdsRemaining || []),
+    ...(prefs.codex?.sevenDay?.thresholdsRemaining || [])
+  ]);
+  $('#alert-threshold-10').checked = true;
+  $('#alert-threshold-20').checked = thresholds.has(20);
+  $('#alert-threshold-5').checked = thresholds.has(5);
+  $('#alert-on-reset').checked = prefs.codex?.fiveHour?.notifyOnReset !== false;
+  alertsErrorKey = prefs.notificationDenied ? 'alertsDenied' : null;
+  renderAlertsError();
+}
+
+function buildMonitoringPreferencesFromForm() {
+  const thresholds = [10];
+  if ($('#alert-threshold-20').checked) thresholds.push(20);
+  if ($('#alert-threshold-5').checked) thresholds.push(5);
+  thresholds.sort((a, b) => b - a);
+  const rule = {
+    enabled: true,
+    thresholdsRemaining: thresholds,
+    notifyOnReset: $('#alert-on-reset').checked
+  };
+  return {
+    enabled: $('#alerts-enabled').checked,
+    notificationDenied: false,
+    codex: { fiveHour: { ...rule }, sevenDay: { ...rule } },
+    cursor: { fiveHour: { ...rule }, sevenDay: { ...rule } }
+  };
+}
+
+async function saveMonitoringPreferences() {
+  if (!nativeInvoke || previewMode) return;
+  setAlertsBusy(true);
+  const next = buildMonitoringPreferencesFromForm();
+  const saved = await invoke('set_monitor_preferences', { preferences: next });
+  setAlertsBusy(false);
+  if (!saved) {
+    alertsErrorKey = 'alertsSaveFailed';
+    applyMonitoringPreferences(monitoringPreferences);
+    renderAlertsError();
+    return;
+  }
+  applyMonitoringPreferences(saved);
+}
+
+async function initializeMonitoringPreferences() {
+  if (!nativeInvoke || previewMode) return;
+  const prefs = await invoke('get_monitor_preferences');
+  applyMonitoringPreferences(prefs || defaultAlertPreferences());
+}
+
+function ingestSnapshot(snapshot) {
+  if (!snapshot?.provider?.kind) return;
+  const provider = normalizeProvider(snapshot.provider.kind);
+  state.snapshots[provider] = snapshot;
+  if (provider === preferences.provider) renderSnapshot();
+}
+
+async function checkForAppUpdate() {
+  if (!nativeInvoke || previewMode) return;
+  const result = await invoke('check_app_update');
+  if (!result?.available || !result.version) return;
+  const banner = $('#status-banner');
+  clearTimeout(state.statusTimer);
+  state.statusKey = `update:${result.version}`;
+  banner.hidden = false;
+  banner.classList.remove('is-error');
+  $('#status-copy').textContent = `${t('updateAvailable')} ${result.version}`;
+  let actions = $('#update-actions');
+  if (!actions) {
+    actions = document.createElement('span');
+    actions.id = 'update-actions';
+    actions.style.marginLeft = '8px';
+    banner.appendChild(actions);
+  }
+  actions.innerHTML = '';
+  const install = document.createElement('button');
+  install.type = 'button';
+  install.className = 'text-button';
+  install.textContent = t('updateInstall');
+  install.addEventListener('click', async () => {
+    install.disabled = true;
+    const ok = await invoke('install_app_update');
+    if (ok === null) showStatus(t('updateFailed'), true);
+  });
+  const later = document.createElement('button');
+  later.type = 'button';
+  later.className = 'text-button';
+  later.textContent = t('updateLater');
+  later.addEventListener('click', () => {
+    banner.hidden = true;
+    actions.innerHTML = '';
+  });
+  actions.append(install, later);
+}
+
+function scheduleUpdateChecks() {
+  if (!nativeInvoke || previewMode) return;
+  setTimeout(() => { checkForAppUpdate(); }, 15_000);
+  setInterval(() => { checkForAppUpdate(); }, 24 * 60 * 60 * 1000);
+}
+
 function defaultAuthLabel(provider = preferences.provider) {
   return isCursor(provider)
     ? (navigator.platform.toLowerCase().includes('win')
@@ -265,7 +435,10 @@ function setProvider(provider, { persist = true, refreshData = true } = {}) {
   }
   preferences.provider = next;
   syncProviderControls();
-  if (persist) savePreferences();
+  if (persist) {
+    savePreferences();
+    syncUiPreferences({ provider: next });
+  }
   if (refreshData) {
     if (currentSnapshot()) renderSnapshot();
     else renderLoadingState();
@@ -279,7 +452,11 @@ function setView(view, persist = true) {
   $('#focus-view').hidden = preferences.view !== 'focus';
   $$('.view-picker button').forEach((button) => button.classList.toggle('active', button.dataset.view === preferences.view));
   $('#view-button i').className = preferences.view === 'dual' ? 'ph ph-gauge' : 'ph ph-circles-three-plus';
-  if (persist) { savePreferences(); renderSnapshot(); }
+  if (persist) {
+    savePreferences();
+    syncUiPreferences({ view: preferences.view });
+    renderSnapshot();
+  }
 }
 
 function setLanguage(language) {
@@ -304,8 +481,10 @@ function setLanguage(language) {
   $('#provider-cursor').title = 'Cursor';
   syncProviderControls();
   savePreferences();
+  syncUiPreferences({ language: preferences.language });
   renderSnapshot();
   renderStartAtLoginError();
+  renderAlertsError();
 }
 
 function formatPercent(windowData) {
@@ -600,20 +779,40 @@ $('#settings-close').addEventListener('click', () => openSettings(false));
 $('#settings-layer').addEventListener('pointerdown', (event) => { if (event.target === $('#settings-layer')) openSettings(false); });
 $('#language-button').addEventListener('click', () => setLanguage(preferences.language === 'zh' ? 'en' : 'zh'));
 $('#always-on-top').addEventListener('change', (event) => {
-  preferences.alwaysOnTop = event.target.checked; savePreferences(); invoke('set_always_on_top', { enabled: preferences.alwaysOnTop });
+  preferences.alwaysOnTop = event.target.checked;
+  savePreferences();
+  invoke('set_always_on_top', { enabled: preferences.alwaysOnTop });
+  syncUiPreferences({ alwaysOnTop: preferences.alwaysOnTop });
 });
 $('#start-at-login').addEventListener('change', (event) => {
   syncStartAtLogin(event.target.checked);
+});
+['#alerts-enabled', '#alert-threshold-20', '#alert-threshold-5', '#alert-on-reset'].forEach((selector) => {
+  $(selector)?.addEventListener('change', () => { saveMonitoringPreferences(); });
 });
 window.addEventListener('keydown', (event) => { if (event.key === 'Escape') openSettings(false); });
 
 if (nativeInvoke && !previewMode) {
   invoke('set_always_on_top', { enabled: preferences.alwaysOnTop });
+  syncUiPreferences();
   initializeStartAtLogin();
+  initializeMonitoringPreferences();
+  scheduleUpdateChecks();
   nativeListen?.('monitor:refresh', () => refresh({ manual: true }));
+  nativeListen?.('monitor:snapshot', (event) => ingestSnapshot(event.payload));
+  nativeListen?.('monitor:open-settings', () => openSettings(true));
+  nativeListen?.('monitor:set-provider', (event) => setProvider(event.payload, { refreshData: false }));
+  nativeListen?.('monitor:set-view', (event) => setView(event.payload));
+  nativeListen?.('monitor:set-always-on-top', (event) => {
+    preferences.alwaysOnTop = Boolean(event.payload);
+    $('#always-on-top').checked = preferences.alwaysOnTop;
+    savePreferences();
+  });
 }
 refresh();
 setInterval(() => {
   if (currentSnapshot()) renderSnapshot();
 }, 30_000);
-setInterval(() => { if (nativeInvoke) refresh(); }, 60_000);
+if (!nativeInvoke || previewMode) {
+  setInterval(() => { if (nativeInvoke) refresh(); }, 60_000);
+}
