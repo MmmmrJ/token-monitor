@@ -87,7 +87,7 @@ Token Monitor 继续定位为一个轻量、低噪声、隐私优先的 Codex / 
 | Tag 与发布触发 | 已完成 | `v1.1.3` Tag 已推送；Release workflow 负责 MSI/NSIS/DMG |
 | v1.1.2 可信度基线 | 已完成 | URL 校验、Cursor 严格映射、竞态隔离、状态模型与双平台 Quality |
 
-当前自动化基线：前端测试 4 项、Rust 测试 25 项，`cargo clippy --all-targets -- -D warnings` 零警告。`v1.2.0` 从分支 `codex/v1.2.0-background-monitor` 实施；`v1.3.0` 尚未开始。
+当前自动化基线：前端测试 4 项、Rust 测试 31 项，`cargo clippy --all-targets -- -D warnings` 零警告。`v1.2.0` 在分支 `codex/v1.2.0-background-monitor` 已实现协调器、托盘、提醒与 Updater bootstrap；正式 Stable Tag 需先配置 `TAURI_SIGNING_*` Secrets 并通过 Release 门禁。`v1.3.0` 尚未开始。
 
 ## 4. v1.1.2 — 安全与可信度热修
 
