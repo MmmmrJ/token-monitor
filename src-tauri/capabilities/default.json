@@ -3,10 +3,13 @@
   "identifier": "default",
   "description": "Permissions for the main monitor window.",
   "windows": ["main"],
-  "permissions": [
+    "permissions": [
     "core:default",
     "core:window:allow-start-resize-dragging",
     "autostart:default",
-    "window-state:default"
+    "window-state:default",
+    "notification:default",
+    "updater:default",
+    "process:default"
   ]
 }

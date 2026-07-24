@@ -205,6 +205,7 @@ body:not(.tauri-host) {
 .setting-row input:disabled { opacity: .45; cursor: default; }
 .setting-inline-error { margin: -4px 0 0; color: #ffc2ca; font-size: 9px; line-height: 1.4; }
 .setting-inline-error[hidden] { display: none; }
+.settings-section-title { margin: 14px 0 2px; color: var(--soft); font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
 .privacy-note { display: flex; align-items: flex-start; gap: 7px; margin: 10px 0 0; color: var(--soft); font-size: 9px; line-height: 1.45; }
 .privacy-note i { flex: none; margin-top: 1px; color: var(--green); font-size: 14px; }
 
