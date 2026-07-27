@@ -65,11 +65,82 @@ fn countdown_label(snapshot: &MonitorSnapshot, language: &str) -> String {
             "无重置时间".into()
         };
     };
-    if language == "en" {
-        format!("Next reset {next}")
-    } else {
-        format!("下次重置 {next}")
+    match format_reset_countdown(next, chrono::Utc::now(), language) {
+        Some(label) => {
+            if language == "en" {
+                format!("Next reset {label}")
+            } else {
+                format!("下次重置 {label}")
+            }
+        }
+        None => {
+            if language == "en" {
+                "No reset time".into()
+            } else {
+                "无重置时间".into()
+            }
+        }
     }
+}
+
+/// Human-readable remaining duration shared with the widget countdown semantics.
+pub fn format_reset_countdown(
+    resets_at: &str,
+    now: chrono::DateTime<chrono::Utc>,
+    language: &str,
+) -> Option<String> {
+    let reset = chrono::DateTime::parse_from_rfc3339(resets_at)
+        .ok()?
+        .with_timezone(&chrono::Utc);
+    let total = (reset - now).num_seconds();
+    if total < 0 {
+        return Some(if language == "en" {
+            "expired".into()
+        } else {
+            "已过期".into()
+        });
+    }
+    let total = total as u64;
+    if total < 60 {
+        return Some(if language == "en" {
+            "<1 min".into()
+        } else {
+            "不足1分钟".into()
+        });
+    }
+    let days = total / 86_400;
+    let hours = (total % 86_400) / 3_600;
+    let minutes = (total % 3_600) / 60;
+    let mut parts = Vec::new();
+    if days > 0 {
+        parts.push(if language == "en" {
+            format!("{days}d")
+        } else {
+            format!("{days}天")
+        });
+    }
+    if hours > 0 {
+        parts.push(if language == "en" {
+            format!("{hours}h")
+        } else {
+            format!("{hours}小时")
+        });
+    }
+    if minutes > 0 {
+        parts.push(if language == "en" {
+            format!("{minutes}m")
+        } else {
+            format!("{minutes}分")
+        });
+    }
+    if parts.is_empty() {
+        return Some(if language == "en" {
+            "<1 min".into()
+        } else {
+            "不足1分钟".into()
+        });
+    }
+    Some(parts.join(" "))
 }
 
 fn summary_lines(snapshot: &MonitorSnapshot, language: &str) -> (String, String, String) {
@@ -373,5 +444,65 @@ async fn handle_tray_menu(app: &AppHandle<Wry>, id: &str) {
             app.exit(0);
         }
         _ => {}
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::format_reset_countdown;
+    use chrono::{Duration, TimeZone, Utc};
+
+    #[test]
+    fn formats_minutes_only() {
+        let now = Utc.with_ymd_and_hms(2026, 7, 27, 12, 0, 0).unwrap();
+        let reset = (now + Duration::minutes(48)).to_rfc3339();
+        assert_eq!(
+            format_reset_countdown(&reset, now, "zh").as_deref(),
+            Some("48分")
+        );
+        assert_eq!(
+            format_reset_countdown(&reset, now, "en").as_deref(),
+            Some("48m")
+        );
+    }
+
+    #[test]
+    fn formats_hours_and_days_without_zero_units() {
+        let now = Utc.with_ymd_and_hms(2026, 7, 27, 12, 0, 0).unwrap();
+        let reset = (now + Duration::hours(5) + Duration::minutes(12)).to_rfc3339();
+        assert_eq!(
+            format_reset_countdown(&reset, now, "zh").as_deref(),
+            Some("5小时 12分")
+        );
+        let reset = (now + Duration::days(2) + Duration::hours(3)).to_rfc3339();
+        assert_eq!(
+            format_reset_countdown(&reset, now, "en").as_deref(),
+            Some("2d 3h")
+        );
+    }
+
+    #[test]
+    fn expired_and_invalid_inputs() {
+        let now = Utc.with_ymd_and_hms(2026, 7, 27, 12, 0, 0).unwrap();
+        let reset = (now - Duration::minutes(5)).to_rfc3339();
+        assert_eq!(
+            format_reset_countdown(&reset, now, "zh").as_deref(),
+            Some("已过期")
+        );
+        assert_eq!(
+            format_reset_countdown(&reset, now, "en").as_deref(),
+            Some("expired")
+        );
+        assert!(format_reset_countdown("not-a-date", now, "en").is_none());
+    }
+
+    #[test]
+    fn under_one_minute() {
+        let now = Utc.with_ymd_and_hms(2026, 7, 27, 12, 0, 0).unwrap();
+        let reset = (now + Duration::seconds(30)).to_rfc3339();
+        assert_eq!(
+            format_reset_countdown(&reset, now, "zh").as_deref(),
+            Some("不足1分钟")
+        );
     }
 }

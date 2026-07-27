@@ -1,6 +1,9 @@
 use crate::providers::{fetch_snapshot, provider_failure_snapshot};
-use crate::snapshot::{cached_failure_snapshot, normalize_provider, MonitorSnapshot, MonitorState};
+use crate::snapshot::{
+    cached_failure_snapshot, normalize_provider, MonitorSnapshot, MonitorState, ProviderErrorKind,
+};
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, Manager};
@@ -22,6 +25,9 @@ pub struct MonitorCoordinator {
     slots: Mutex<HashMap<String, ProviderSlot>>,
     last_loop_tick: Mutex<Instant>,
     pub ui: Mutex<UiSyncState>,
+    /// Test/observability counters for owner-only side effects.
+    pub side_effect_count: AtomicU64,
+    pub fetch_count: AtomicU64,
 }
 
 #[derive(Clone, Debug)]
@@ -49,6 +55,8 @@ impl Default for MonitorCoordinator {
             slots: Mutex::new(HashMap::new()),
             last_loop_tick: Mutex::new(Instant::now()),
             ui: Mutex::new(UiSyncState::default()),
+            side_effect_count: AtomicU64::new(0),
+            fetch_count: AtomicU64::new(0),
         }
     }
 }
@@ -59,6 +67,24 @@ pub fn backoff_secs_for_streak(fail_streak: u32) -> u64 {
     }
     let index = (fail_streak as usize - 1).min(BACKOFF_STEPS.len() - 1);
     BACKOFF_STEPS[index].min(MAX_BACKOFF_SECS)
+}
+
+pub fn is_refresh_failure(snapshot: &MonitorSnapshot) -> bool {
+    snapshot.cached
+        || matches!(
+            snapshot.provider.error_kind,
+            Some(ProviderErrorKind::NetworkError | ProviderErrorKind::ServiceError)
+        )
+}
+
+pub fn apply_backoff_after_refresh(fail_streak: u32, failed: bool, manual: bool) -> u32 {
+    if failed && !manual {
+        fail_streak.saturating_add(1)
+    } else if !failed {
+        0
+    } else {
+        fail_streak
+    }
 }
 
 impl MonitorCoordinator {
@@ -73,51 +99,48 @@ impl MonitorCoordinator {
             *last = kind.clone();
         }
 
-        let cell = {
+        let (cell, is_owner) = {
             let mut slots = self.slots.lock().await;
             let slot = slots.entry(kind.clone()).or_default();
             if let Some(existing) = &slot.inflight {
-                existing.clone()
+                (existing.clone(), false)
             } else {
                 let cell = Arc::new(OnceCell::new());
                 slot.inflight = Some(cell.clone());
-                cell
+                (cell, true)
             }
         };
 
         let snapshot = cell
-            .get_or_init(|| async { self.fetch_and_store(app, &kind).await })
+            .get_or_init(|| async {
+                self.fetch_count.fetch_add(1, Ordering::SeqCst);
+                self.fetch_and_store(app, &kind).await
+            })
             .await
             .clone();
 
-        {
-            let mut slots = self.slots.lock().await;
-            if let Some(slot) = slots.get_mut(&kind) {
-                slot.inflight = None;
-                let failed = snapshot.cached
-                    || matches!(
-                        snapshot.provider.error_kind,
-                        Some(
-                            crate::snapshot::ProviderErrorKind::NetworkError
-                                | crate::snapshot::ProviderErrorKind::ServiceError
-                        )
-                    );
-                if failed && !manual {
-                    slot.fail_streak = slot.fail_streak.saturating_add(1);
-                } else if !snapshot.cached && snapshot.provider.error_kind.is_none() {
-                    slot.fail_streak = 0;
+        if is_owner {
+            {
+                let mut slots = self.slots.lock().await;
+                if let Some(slot) = slots.get_mut(&kind) {
+                    slot.inflight = None;
+                    let failed = is_refresh_failure(&snapshot);
+                    slot.fail_streak =
+                        apply_backoff_after_refresh(slot.fail_streak, failed, manual);
+                    if manual && !failed {
+                        slot.fail_streak = 0;
+                    }
+                    let delay = backoff_secs_for_streak(slot.fail_streak);
+                    slot.next_due = Some(Instant::now() + Duration::from_secs(delay));
                 }
-                if manual && !snapshot.cached && snapshot.provider.error_kind.is_none() {
-                    slot.fail_streak = 0;
-                }
-                let delay = backoff_secs_for_streak(slot.fail_streak);
-                slot.next_due = Some(Instant::now() + Duration::from_secs(delay));
             }
+
+            self.side_effect_count.fetch_add(1, Ordering::SeqCst);
+            let _ = app.emit("monitor:snapshot", &snapshot);
+            crate::tray::update_tray_from_snapshot(app, &snapshot).await;
+            crate::alerts::evaluate_snapshot(app, &snapshot).await;
         }
 
-        let _ = app.emit("monitor:snapshot", &snapshot);
-        crate::tray::update_tray_from_snapshot(app, &snapshot).await;
-        crate::alerts::evaluate_snapshot(app, &snapshot).await;
         Ok(snapshot)
     }
 
@@ -196,6 +219,27 @@ pub fn spawn_coordinator_loop(app: AppHandle) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::snapshot::{AccountSummary, ProviderAvailability, ProviderStatus, QuotaWindows};
+
+    fn live_snapshot(kind: &str) -> MonitorSnapshot {
+        MonitorSnapshot {
+            account: AccountSummary {
+                display_name: "demo".into(),
+                plan: "plus".into(),
+            },
+            provider: ProviderStatus {
+                kind: kind.into(),
+                source: "local".into(),
+                auth_path_label: "~/.codex/auth.json".into(),
+                availability: ProviderAvailability::Live,
+                error_kind: None,
+            },
+            windows: QuotaWindows::default(),
+            refreshed_at: Some("2026-07-27T00:00:00Z".into()),
+            checked_at: "2026-07-27T00:00:00Z".into(),
+            cached: false,
+        }
+    }
 
     #[test]
     fn backoff_steps_follow_roadmap() {
@@ -204,5 +248,17 @@ mod tests {
         assert_eq!(backoff_secs_for_streak(2), 120);
         assert_eq!(backoff_secs_for_streak(3), 300);
         assert_eq!(backoff_secs_for_streak(8), 300);
+    }
+
+    #[test]
+    fn owner_backoff_resets_on_success_and_increments_on_failure() {
+        assert_eq!(apply_backoff_after_refresh(2, false, false), 0);
+        assert_eq!(apply_backoff_after_refresh(0, true, false), 1);
+        assert_eq!(apply_backoff_after_refresh(1, true, true), 1);
+        let failed = live_snapshot("codex");
+        let mut cached = failed.clone();
+        cached.cached = true;
+        assert!(is_refresh_failure(&cached));
+        assert!(!is_refresh_failure(&failed));
     }
 }

@@ -175,7 +175,7 @@ body:not(.tauri-host) {
 .next-reset strong { color: #fff; font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; font-size: 24px; font-weight: 700; letter-spacing: -.045em; }
 .next-reset time { color: var(--soft); font-size: 10px; font-weight: 620; }
 
-.settings-layer { position: absolute; z-index: 10; inset: 58px 0 0; padding: 12px; overflow: auto; background: rgba(6, 10, 17, .68); backdrop-filter: blur(14px); }
+.settings-layer { position: absolute; z-index: 10; inset: 58px 0 0; padding: 12px 12px 20px; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; background: rgba(6, 10, 17, .68); backdrop-filter: blur(14px); }
 .settings-layer[hidden] { display: none; }
 .settings-card { width: min(470px, 100%); margin: 0 auto; padding: 15px; border: 1px solid var(--line); border-radius: 18px; background: rgba(20, 27, 40, .97); box-shadow: 0 20px 45px rgba(0, 0, 0, .42); }
 .settings-heading { display: flex; align-items: flex-start; justify-content: space-between; }

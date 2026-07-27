@@ -220,6 +220,18 @@ async function initializeStartAtLogin() {
   if (status) applyAutostartStatus(status);
 }
 
+async function refreshStartAtLoginFromSystem() {
+  if (!nativeInvoke || previewMode) return;
+  setStartAtLoginBusy(true);
+  const status = await invoke('query_start_at_login');
+  setStartAtLoginBusy(false);
+  if (status) applyAutostartStatus(status);
+  else {
+    startAtLoginErrorKind = 'query_failed';
+    renderStartAtLoginError();
+  }
+}
+
 function syncUiPreferences(extra = {}) {
   if (!nativeInvoke || previewMode) return;
   invoke('sync_ui_preferences', {
@@ -745,7 +757,10 @@ function openSettings(open) {
   $('#settings-layer').hidden = !open;
   $('#settings-layer').setAttribute('aria-hidden', String(!open));
   $('#settings-button').setAttribute('aria-expanded', String(open));
-  if (open) $('#settings-close').focus();
+  if (open) {
+    $('#settings-close').focus();
+    refreshStartAtLoginFromSystem();
+  }
 }
 
 document.documentElement.classList.toggle('tauri-host', Boolean(nativeWindow));
@@ -753,6 +768,9 @@ document.body.classList.toggle('tauri-host', Boolean(nativeWindow));
 document.body.classList.toggle('reduce-motion', preferences.reduceMotion);
 $('#always-on-top').checked = preferences.alwaysOnTop;
 $('#start-at-login').checked = preferences.startAtLogin;
+if (nativeInvoke && !previewMode) {
+  setStartAtLoginBusy(true);
+}
 setView(preferences.view, false);
 setLanguage(preferences.language);
 syncProviderControls();

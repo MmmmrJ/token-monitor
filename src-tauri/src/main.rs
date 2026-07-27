@@ -13,7 +13,7 @@ mod snapshot;
 mod tray;
 mod updater;
 
-use autostart::{initialize_start_at_login, set_start_at_login};
+use autostart::{initialize_start_at_login, query_start_at_login, set_start_at_login};
 use coordinator::{spawn_coordinator_loop, MonitorCoordinator};
 use lifecycle::LifecycleState;
 use preferences::{
@@ -87,6 +87,7 @@ fn main() {
             start_window_drag,
             set_always_on_top,
             initialize_start_at_login,
+            query_start_at_login,
             set_start_at_login,
             get_monitor_preferences,
             set_monitor_preferences,
