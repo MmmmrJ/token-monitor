@@ -1,10 +1,10 @@
 # Token Monitor 开发路线图
 
-> 状态：`v1.2.0` 已发布；`v1.3.0` 实施中（分支 `codex/v1.3.0-update-diagnostics`）
+> 状态：`v1.3.0` 已发布（合入 `main`；Tag `v1.3.0`；Release 成功）
 >
-> 已发布基线：`v1.2.0`；当前工作区：`v1.3.0` 实施中
+> 已发布基线：`v1.3.0`；当前工作区：稳定观察与按需补丁
 >
-> 规划周期：下一版本约 3–4 周（`v1.3.0`）
+> 规划周期：路线图四版本周期已收口；下一功能版本待明确需求后再排期
 >
 > 平台策略：Windows / macOS 同等支持与验收
 >
@@ -70,13 +70,13 @@ Token Monitor 继续定位为一个轻量、低噪声、隐私优先的 Codex / 
 | `v1.1.2` | 安全与数据可信度热修 | 1–2 周 | 已完成 |
 | `v1.1.3` | 原生窗口与生命周期修复 | 1–2 周 | 已完成（关闭到托盘、单实例、autostart 迁移；Tag `v1.1.3`） |
 | `v1.2.0` | 后台监控、托盘、提醒与更新引导 | 3–5 周 | 已完成（合入 `main`；Tag `v1.2.0`；Secrets 与 Release 聚合已打通） |
-| `v1.3.0` | 更新体验闭环与安全诊断 | 3–4 周 | 实施中（设置页更新闭环、签名披露、诊断摘要、`SHA256SUMS.txt`） |
+| `v1.3.0` | 更新体验闭环与安全诊断 | 3–4 周 | 已完成（合入 `main`；Tag `v1.3.0`；Release 成功；含更新闭环、安全诊断、`SHA256SUMS.txt`） |
 
 已确认的产品默认值：窗口内容 `0px` 贴合原生画布；Cursor 中文 UI 使用“订阅额度 / API 额度”；提醒默认仅启用 10%；当前阶段允许发布未经过 Apple 公证或 Windows 商业代码签名的 Stable 安装包，但必须明确提示风险。
 
 ### 3.1 当前实施进度（2026-07-27）
 
-`v1.2.0` 已发布。`v1.3.0` 在分支 `codex/v1.3.0-update-diagnostics` 推进：设置页“关于与诊断”、手动/后台更新确认流、安全诊断摘要，以及 Release `SHA256SUMS.txt`。双平台 Quality/Release 结果以 GitHub Actions 为准。
+`v1.3.0` 已从 `codex/v1.3.0-update-diagnostics` 合入 `main`，annotated Tag `v1.3.0` 已推送，GitHub Release 与双平台安装/updater 资产发布成功。路线图内四个版本（可信 → 常驻 → 可维护）均已收口；平台 Authenticode / Developer ID 公证仍为可选增强，Release 继续披露 `not_configured`。
 
 | 工作项 | 状态 | 已落地内容 |
 | --- | --- | --- |
@@ -87,13 +87,13 @@ Token Monitor 继续定位为一个轻量、低噪声、隐私优先的 Codex / 
 | 额度提醒 | 已完成 | 默认仅 10%、偏好原子写入、周期去重、权限拒绝回滚 |
 | Updater bootstrap | 已完成 | updater/process 插件、公钥、启动后检查；用户确认后下载安装 |
 | Release 聚合 | 已完成 | 双平台 artifact → 统一 Release；`latest.json` 仅指向已签名 updater archive |
-| Tag 与发布触发 | 已完成 | `v1.2.0` Tag 已推送；`TAURI_SIGNING_*` 门禁通过后才发布 updater 资产 |
+| Tag 与发布触发 | 已完成 | `v1.3.0` Tag 已推送；`TAURI_SIGNING_*` 门禁通过后才发布 updater 资产 |
 | v1.1.2 可信度基线 | 已完成 | URL 校验、Cursor 严格映射、竞态隔离、状态模型与双平台 Quality |
-| 设置页更新闭环 | 实施中 | 检查 / 确认 / 进度 / 失败分类；后台检查仅在发现更新时提示 |
-| 关于与诊断 | 实施中 | `get_app_info` / `get_safe_diagnostics`、签名状态披露、复制诊断摘要 |
-| SHA256SUMS | 实施中 | Release 生成并校验全量资产哈希 |
+| 设置页更新闭环 | 已完成 | 检查 / 确认 / 进度累计 / 失败分类；后台检查仅在发现更新时提示 |
+| 关于与诊断 | 已完成 | `get_app_info` / `get_safe_diagnostics`、签名状态披露、复制诊断摘要；Snapshot 仅固定 `sourceLabel` |
+| SHA256SUMS | 已完成 | Release 生成并校验全量资产哈希（`SHA256SUMS.txt`） |
 
-当前自动化基线：前端测试 13 项、Rust 测试 40 项，`cargo clippy --all-targets -- -D warnings` 零警告。
+当前自动化基线：前端测试 14 项、Rust 测试 44 项，`cargo fmt --check` 与 `cargo clippy --all-targets -- -D warnings` 零警告。
 
 ## 4. v1.1.2 — 安全与可信度热修
 
@@ -377,7 +377,7 @@ v1.1.2/v1.1.3 没有更新客户端，只承诺通过手动安装包升级并保
 - 睡眠超过 90 秒后 10 秒内发起一次刷新；网络失败按退避探测，首次成功后恢复 60 秒周期。
 - v1.2.0 Release 包含可验证签名的 updater artifact 和唯一 `latest.json`。
 
-**实施状态（2026-07-27）**：后台协调器、托盘摘要、额度提醒与 Updater bootstrap 已合入 `main`，并创建 annotated Tag `v1.2.0`。Release workflow 使用 `app,dmg` / `msi,nsis` 产出并暂存上传签名 updater 资产；`latest.json` 的 Windows 地址使用 Tauri v2 已签名 NSIS `*-setup.exe`（`createUpdaterArtifacts: true` 不再生成 `.nsis.zip`）。从 v1.1.x 升级需先手动安装 v1.2.0；之后可通过应用内更新升级到后续版本。`v1.3.0` 承接可见更新闭环与安全诊断。
+**实施状态（2026-07-27）**：后台协调器、托盘摘要、额度提醒与 Updater bootstrap 已合入 `main`，并创建 annotated Tag `v1.2.0`。Release workflow 使用 `app,dmg` / `msi,nsis` 产出并暂存上传签名 updater 资产；`latest.json` 的 Windows 地址使用 Tauri v2 已签名 NSIS `*-setup.exe`（`createUpdaterArtifacts: true` 不再生成 `.nsis.zip`）。从 v1.1.x 升级需先手动安装 v1.2.0；之后可通过应用内更新升级到后续版本。可见更新闭环与安全诊断已由 `v1.3.0` 承接并发布。
 
 ## 7. v1.3.0 — 更新体验闭环与安全诊断
 
@@ -462,6 +462,8 @@ Release workflow 完成后必须检查：
 - 诊断文本经过敏感字段断言测试。
 - 双平台 Release 资产、SHA-256、updater 签名和平台签名状态说明全部完整后才发布 Stable；平台代码签名本身不是当前版本的强制条件。
 
+**实施状态（2026-07-27）**：设置页更新确认流、关于与诊断、WebView 安全 Snapshot、`SHA256SUMS.txt` 与平台签名披露已合入 `main`，并创建 annotated Tag `v1.3.0`。GitHub Release 已发布双平台安装包与已签名 updater 资产；平台代码签名仍为 `not_configured` 披露，不阻断 Stable。从 `v1.2.0` 起可通过应用内 updater 升级；`v1.1.x` 仍需先手动安装再到应用内路径。
+
 ## 8. 测试矩阵
 
 ### 8.1 Provider fixture
@@ -540,17 +542,12 @@ npm ci
 ```bash
 git checkout main
 git pull --ff-only
-git checkout -b codex/v1.3.0-update-diagnostics
+git checkout -b codex/<topic>
 ```
 
-`v1.2.0` 已合入并打 Tag；实施记录见 `doc/V1.2.0_IMPLEMENTATION_PLAN.md` 与 `doc/V1.2.0_FIX_PLAN.md`。下一版本 `v1.3.0` 建议拆分为：
+`v1.3.0` 已合入并打 Tag；实施与测试修复记录见 `doc/V1.3.0_IMPLEMENTATION_PLAN.md`、`doc/V1.3.0_TEST_FIX_PLAN.md`。`v1.2.0` 记录见 `doc/V1.2.0_IMPLEMENTATION_PLAN.md` 与 `doc/V1.2.0_FIX_PLAN.md`。
 
-1. `feat: add settings check-for-update flow and progress UI`
-2. `feat: surface updater and platform signing status in About/Release notes`
-3. `feat: add non-sensitive diagnostics export`
-4. `release: prepare Token Monitor v1.3.0`
-
-`v1.2.0` 已从 `codex/v1.2.0-background-monitor` 合入并打 Tag；后续以应用内升级与诊断能力为主线验收。
+后续变更建议按主题开分支，优先处理安全 / 额度正确性 / 发布回归；新功能版本需先更新本路线图再排期。
 
 ### 9.3 macOS 本地验证
 
@@ -579,7 +576,7 @@ npm run tauri:build -- --target universal-apple-darwin --bundles app,dmg
 
 ## 10. 明确暂缓
 
-以下内容不进入未来四个版本：
+以下内容仍明确暂缓，不自动进入下一功能版本：
 
 - 第三个 Provider
 - 多账户和账户切换
@@ -594,7 +591,7 @@ npm run tauri:build -- --target universal-apple-darwin --bundles app,dmg
 - Stable/Beta 双通道
 - 预测额度耗尽时间
 
-这些能力只有在 v1.3.0 稳定发布后，并获得明确用户需求与性能预算时再评估。
+这些能力只有在获得明确用户需求与性能预算时再评估；`v1.3.0` 已作为当前稳定基线发布。
 
 ## 11. 发布原则
 
@@ -605,4 +602,4 @@ npm run tauri:build -- --target universal-apple-darwin --bundles app,dmg
 - Tauri updater 签名、macOS Developer ID/notarization 与 Windows Authenticode 是三套独立验证；Release 必须分别记录“通过 / 未配置 / 失败”，其中 updater 签名失败会阻止发布，平台签名未配置暂不阻止发布。
 - 任何安全、额度正确性或凭据边界问题优先于新功能。
 
-下一步从 `main` 创建 `codex/v1.3.0-update-diagnostics`，在 v1.2.0 updater bootstrap 之上完成设置页更新闭环、平台签名状态披露与不含敏感信息的诊断摘要。
+下一步以 `v1.3.0` 为 Stable 基线做观察与按需补丁；可选增强包括 Developer ID/notarization、Authenticode，以及从真实 `v1.2.0` → `v1.3.0` 应用内升级路径的持续验收。新功能版本排期前先更新本路线图。
