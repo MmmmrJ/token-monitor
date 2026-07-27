@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /**
  * Build latest.json for Tauri updater from collected release assets.
- * Windows in-app updates must use the signed NSIS archive (.nsis.zip), not Setup.exe.
+ * Tauri v2 (`createUpdaterArtifacts: true`) reuses the signed NSIS Setup EXE
+ * on Windows; `.nsis.zip` only appears with `"v1Compatible"`.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -17,32 +18,34 @@ export function buildLatestJson({
 }) {
   const find = (rx) => files.find((name) => rx.test(name));
   const appTar = find(/\.app\.tar\.gz$/);
-  const nsisZip = find(/\.nsis\.zip$/);
+  // Prefer v1Compatible zip when present; otherwise Tauri v2 signed setup.exe.
+  const windowsArtifact = find(/\.nsis\.zip$/) || find(/-setup\.exe$/i);
   if (!appTar) throw new Error('missing macOS updater archive (.app.tar.gz)');
-  if (!nsisZip) throw new Error('missing Windows NSIS updater archive (.nsis.zip)');
+  if (!windowsArtifact) {
+    throw new Error('missing Windows updater artifact (.nsis.zip or *-setup.exe)');
+  }
 
   const appSig = `${appTar}.sig`;
-  const nsisSig = `${nsisZip}.sig`;
+  const windowsSigName = `${windowsArtifact}.sig`;
   if (!files.includes(appSig)) throw new Error(`missing signature for ${appTar}`);
-  if (!files.includes(nsisSig)) throw new Error(`missing signature for ${nsisZip}`);
+  if (!files.includes(windowsSigName)) {
+    throw new Error(`missing signature for ${windowsArtifact}`);
+  }
 
   const base = `https://github.com/${repo}/releases/download/${tag}`;
   const darwinSig = readSignature(appSig);
-  const windowsSig = readSignature(nsisSig);
+  const windowsSig = readSignature(windowsSigName);
   if (!darwinSig) throw new Error(`empty signature for ${appTar}`);
-  if (!windowsSig) throw new Error(`empty signature for ${nsisZip}`);
+  if (!windowsSig) throw new Error(`empty signature for ${windowsArtifact}`);
 
   const darwin = { url: `${base}/${appTar}`, signature: darwinSig };
   const platforms = {
     'darwin-aarch64': darwin,
     'darwin-x86_64': { ...darwin },
-    'windows-x86_64': { url: `${base}/${nsisZip}`, signature: windowsSig }
+    'windows-x86_64': { url: `${base}/${windowsArtifact}`, signature: windowsSig }
   };
 
   for (const [key, value] of Object.entries(platforms)) {
-    if (/\.exe$/i.test(value.url)) {
-      throw new Error(`${key} updater URL must not point to .exe: ${value.url}`);
-    }
     if (!value.signature) throw new Error(`${key} signature missing`);
   }
 

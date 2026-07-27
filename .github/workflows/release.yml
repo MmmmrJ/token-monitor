@@ -40,8 +40,7 @@ jobs:
             require: |
               ls staged/*.msi >/dev/null
               ls staged/*setup.exe >/dev/null
-              ls staged/*.nsis.zip >/dev/null
-              ls staged/*.nsis.zip.sig >/dev/null
+              ls staged/*setup.exe.sig >/dev/null
 
     steps:
       - name: Check out source
@@ -104,8 +103,8 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p staged
-          # upload-artifact globs miss compound updater names (*.app.tar.gz / *.nsis.zip);
-          # stage via find so Release aggregation always receives signed updater archives.
+          # Stage via find so compound names (*.app.tar.gz) and Spaces are preserved.
+          # Tauri v2 Windows updater reuses *-setup.exe + *.sig (not .nsis.zip).
           find src-tauri/target -type f \( \
             -name '*.dmg' -o \
             -name '*.msi' -o \
@@ -161,15 +160,15 @@ jobs:
           ls release-assets/*.dmg >/dev/null
           ls release-assets/*.msi >/dev/null
           ls release-assets/*setup.exe >/dev/null
+          ls release-assets/*setup.exe.sig >/dev/null
           ls release-assets/*.app.tar.gz >/dev/null
-          ls release-assets/*.nsis.zip >/dev/null
-          ls release-assets/*.sig >/dev/null
+          ls release-assets/*.app.tar.gz.sig >/dev/null
           python3 - <<'PY'
           import json
           data = json.load(open("release-assets/latest.json"))
           win = data["platforms"]["windows-x86_64"]["url"]
-          assert win.endswith(".nsis.zip"), win
-          assert not win.endswith(".exe"), win
+          assert win.endswith("-setup.exe") or win.endswith(".nsis.zip"), win
+          assert not win.endswith(".msi"), win
           print("latest.json windows updater OK:", win)
           PY
 
@@ -185,7 +184,7 @@ jobs:
             - macOS：Universal DMG（Apple Silicon + Intel）
             - Windows：x64 MSI 或 NSIS Setup EXE
 
-            应用内更新仅使用已签名的 updater archive（macOS `.app.tar.gz`、Windows `.nsis.zip`），普通 Setup EXE / MSI / DMG 仅供手动安装。
+            应用内更新使用已签名的 updater 资产（macOS `.app.tar.gz`、Windows 已签名的 NSIS `*-setup.exe`）；MSI / DMG 仍可供手动安装。
 
             当前公开构建默认未配置 Apple 公证或 Windows 商业代码签名；请核对 Release 资产 SHA-256。
 
