@@ -157,6 +157,8 @@ jobs:
           ls -la release-assets
           BUILD_LATEST_JSON=1 node scripts/build-latest-json.mjs release-assets
           test -s release-assets/latest.json
+          BUILD_SHA256SUMS=1 node scripts/build-sha256sums.mjs release-assets
+          test -s release-assets/SHA256SUMS.txt
           ls release-assets/*.dmg >/dev/null
           ls release-assets/*.msi >/dev/null
           ls release-assets/*setup.exe >/dev/null
@@ -165,11 +167,18 @@ jobs:
           ls release-assets/*.app.tar.gz.sig >/dev/null
           python3 - <<'PY'
           import json
+          from pathlib import Path
           data = json.load(open("release-assets/latest.json"))
           win = data["platforms"]["windows-x86_64"]["url"]
           assert win.endswith("-setup.exe") or win.endswith(".nsis.zip"), win
           assert not win.endswith(".msi"), win
+          sums = Path("release-assets/SHA256SUMS.txt").read_text()
+          for name in Path("release-assets").iterdir():
+              if not name.is_file() or name.name == "SHA256SUMS.txt":
+                  continue
+              assert name.name in sums, name.name
           print("latest.json windows updater OK:", win)
+          print("SHA256SUMS covers", sums.count("\n"), "entries")
           PY
 
       - name: Create GitHub Release
@@ -178,17 +187,20 @@ jobs:
           tag_name: ${{ github.ref_name }}
           name: Token Monitor ${{ github.ref_name }}
           body: |
-            Token Monitor ${{ github.ref_name }} 支持后台刷新、托盘摘要、额度提醒，以及可验签的应用内更新引导。
+            Token Monitor ${{ github.ref_name }} 提供设置页更新闭环、签名状态披露与安全诊断摘要。
 
             下载对应平台的安装包：
             - macOS：Universal DMG（Apple Silicon + Intel）
             - Windows：x64 MSI 或 NSIS Setup EXE
 
-            应用内更新使用已签名的 updater 资产（macOS `.app.tar.gz`、Windows 已签名的 NSIS `*-setup.exe`）；MSI / DMG 仍可供手动安装。
+            应用内更新使用已签名的 updater 资产（macOS `.app.tar.gz`、Windows 已签名的 NSIS `*-setup.exe`）；MSI / DMG 仍可供手动安装。请核对本 Release 的 `SHA256SUMS.txt`。
 
-            当前公开构建默认未配置 Apple 公证或 Windows 商业代码签名；请核对 Release 资产 SHA-256。
+            签名状态：
+            - Tauri updater 签名：强制（创建 Stable 的硬门槛）
+            - macOS Developer ID / 公证：未配置
+            - Windows Authenticode：未配置
 
-            从 v1.1.x 升级：请先手动安装 v1.2.0；之后可通过应用内更新升级到后续版本。登录启动项名称继续为 Token Monitor。
+            从 v1.2.0 起可通过应用内更新升级；v1.1.x 请先手动安装较新版本。登录启动项名称继续为 Token Monitor。
           files: release-assets/*
           fail_on_unmatched_files: true
         env:

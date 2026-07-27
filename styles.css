@@ -206,6 +206,21 @@ body:not(.tauri-host) {
 .setting-inline-error { margin: -4px 0 0; color: #ffc2ca; font-size: 9px; line-height: 1.4; }
 .setting-inline-error[hidden] { display: none; }
 .settings-section-title { margin: 14px 0 2px; color: var(--soft); font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.about-card { margin-top: 8px; padding: 12px; border: 1px solid var(--line); border-radius: 14px; background: rgba(255, 255, 255, .03); }
+.about-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 0 0 8px; color: var(--soft); font-size: 12px; }
+.about-row strong { color: var(--text); font-weight: 650; text-align: right; }
+.about-actions, .about-update-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+.about-update-actions[hidden],
+.about-update-notes[hidden],
+.about-update > button[hidden] {
+  display: none;
+}
+.about-update { margin-top: 4px; padding-top: 10px; border-top: 1px solid var(--line); }
+.about-update-status { margin: 8px 0 0; color: var(--soft); font-size: 12px; min-height: 1.2em; }
+.about-update-status.is-error { color: #ffb4b4; }
+.about-update-notes { margin-top: 8px; max-height: 88px; overflow: auto; color: var(--text); font-size: 12px; white-space: pre-wrap; }
+.about-diagnostics { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+.diagnostics-fallback { width: 100%; margin-top: 8px; padding: 8px; border: 1px solid var(--line); border-radius: 10px; background: rgba(0, 0, 0, .25); color: var(--text); font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; resize: vertical; }
 .privacy-note { display: flex; align-items: flex-start; gap: 7px; margin: 10px 0 0; color: var(--soft); font-size: 9px; line-height: 1.45; }
 .privacy-note i { flex: none; margin-top: 1px; color: var(--green); font-size: 14px; }
 

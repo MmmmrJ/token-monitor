@@ -15,9 +15,5 @@ pub async fn fetch_snapshot(
 }
 
 pub fn provider_failure_snapshot(kind: &str, failure: ProviderFailure) -> MonitorSnapshot {
-    let label = match kind {
-        "cursor" => cursor::auth_path_label(),
-        _ => codex::auth_path_label_fallback(),
-    };
-    failure_snapshot(kind, failure, label)
+    failure_snapshot(kind, failure)
 }

@@ -1,15 +1,10 @@
 use crate::snapshot::{
-    connected_state, provider_failure, AccountSummary, MonitorSnapshot, ProviderFailure,
+    connected_state, fixed_source_label, provider_failure, MonitorSnapshot, ProviderFailure,
     ProviderStatus, QuotaWindow, QuotaWindows,
-};
-use base64::{
-    engine::general_purpose::{URL_SAFE, URL_SAFE_NO_PAD},
-    Engine as _,
 };
 use chrono::Utc;
 use reqwest::{redirect::Policy, Client, StatusCode, Url};
 use serde::Deserialize;
-use serde_json::Value;
 use std::{
     env, fs,
     path::{Path, PathBuf},
@@ -28,6 +23,7 @@ struct CodexAuthFile {
 #[derive(Clone, Debug, Default, Deserialize)]
 struct CodexTokens {
     access_token: Option<String>,
+    #[allow(dead_code)]
     id_token: Option<String>,
     account_id: Option<String>,
 }
@@ -68,24 +64,6 @@ fn codex_home() -> Result<PathBuf, ProviderFailure> {
     Ok(PathBuf::from(home).join(".codex"))
 }
 
-fn auth_path_label(_home: &Path) -> String {
-    if env::var_os("CODEX_HOME").is_some() {
-        "$CODEX_HOME/auth.json".into()
-    } else if cfg!(target_os = "windows") {
-        "%USERPROFILE%\\.codex\\auth.json".into()
-    } else {
-        "~/.codex/auth.json".into()
-    }
-}
-
-pub fn auth_path_label_fallback() -> String {
-    codex_home()
-        .ok()
-        .as_deref()
-        .map(auth_path_label)
-        .unwrap_or_else(|| "Codex auth.json".into())
-}
-
 fn read_auth(home: &Path) -> Result<CodexAuthFile, ProviderFailure> {
     let path = home.join("auth.json");
     let contents = fs::read_to_string(&path).map_err(|error| {
@@ -108,34 +86,6 @@ fn read_auth(home: &Path) -> Result<CodexAuthFile, ProviderFailure> {
             "The local Codex sign-in file is not valid JSON.",
         )
     })
-}
-
-fn decode_jwt_claims(token: Option<&str>) -> Option<Value> {
-    let payload = token?.split('.').nth(1)?;
-    let bytes = URL_SAFE_NO_PAD
-        .decode(payload)
-        .or_else(|_| URL_SAFE.decode(payload))
-        .ok()?;
-    serde_json::from_slice(&bytes).ok()
-}
-
-fn claim_string(claims: &Value, key: &str) -> Option<String> {
-    claims.get(key)?.as_str().map(str::to_owned)
-}
-
-fn account_identity(tokens: &CodexTokens, response_plan: Option<&str>) -> AccountSummary {
-    let claims = decode_jwt_claims(tokens.id_token.as_deref()).unwrap_or(Value::Null);
-    let auth_claims = claims
-        .get("https://api.openai.com/auth")
-        .unwrap_or(&Value::Null);
-    let display_name = claim_string(&claims, "email")
-        .or_else(|| claim_string(&claims, "name"))
-        .unwrap_or_else(|| "Local Codex account".into());
-    let plan = response_plan
-        .map(str::to_owned)
-        .or_else(|| claim_string(auth_claims, "chatgpt_plan_type"))
-        .unwrap_or_else(|| "ChatGPT".into());
-    AccountSummary { display_name, plan }
 }
 
 fn default_usage_url() -> Url {
@@ -242,7 +192,6 @@ pub fn classify_windows(rate_limit: Option<RateLimitDetails>) -> QuotaWindows {
 
 pub async fn fetch_local_snapshot() -> Result<MonitorSnapshot, ProviderFailure> {
     let home = codex_home()?;
-    let label = auth_path_label(&home);
     let auth = read_auth(&home)?;
     if auth
         .auth_mode
@@ -317,16 +266,15 @@ pub async fn fetch_local_snapshot() -> Result<MonitorSnapshot, ProviderFailure> 
             "The Codex usage response could not be understood.",
         )
     })?;
-    let account = account_identity(&tokens, payload.plan_type.as_deref());
+    let _ = payload.plan_type;
     let windows = classify_windows(payload.rate_limit);
     let availability = connected_state(&windows);
     let now = Utc::now().to_rfc3339();
     Ok(MonitorSnapshot {
-        account,
         provider: ProviderStatus {
             kind: "codex".into(),
             source: "local_codex_oauth".into(),
-            auth_path_label: label,
+            source_label: fixed_source_label("codex").into(),
             availability,
             error_kind: None,
         },

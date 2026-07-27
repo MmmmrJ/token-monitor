@@ -1,6 +1,7 @@
 use crate::providers::{fetch_snapshot, provider_failure_snapshot};
 use crate::snapshot::{
-    cached_failure_snapshot, normalize_provider, MonitorSnapshot, MonitorState, ProviderErrorKind,
+    assert_snapshot_safe_for_webview, cached_failure_snapshot, normalize_provider, MonitorSnapshot,
+    MonitorState, ProviderErrorKind,
 };
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -161,6 +162,16 @@ impl MonitorCoordinator {
                 }
             }
         };
+        let snapshot = match assert_snapshot_safe_for_webview(&snapshot) {
+            Ok(()) => snapshot,
+            Err(_) => provider_failure_snapshot(
+                kind,
+                crate::snapshot::provider_failure(
+                    "invalid_response",
+                    "Snapshot failed the WebView safety check.",
+                ),
+            ),
+        };
 
         if !snapshot.cached && snapshot.provider.error_kind.is_none() {
             if let Ok(mut guard) = state.snapshots.lock() {
@@ -219,18 +230,14 @@ pub fn spawn_coordinator_loop(app: AppHandle) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::snapshot::{AccountSummary, ProviderAvailability, ProviderStatus, QuotaWindows};
+    use crate::snapshot::{ProviderAvailability, ProviderStatus, QuotaWindows};
 
     fn live_snapshot(kind: &str) -> MonitorSnapshot {
         MonitorSnapshot {
-            account: AccountSummary {
-                display_name: "demo".into(),
-                plan: "plus".into(),
-            },
             provider: ProviderStatus {
                 kind: kind.into(),
                 source: "local".into(),
-                auth_path_label: "~/.codex/auth.json".into(),
+                source_label: crate::snapshot::fixed_source_label(kind).into(),
                 availability: ProviderAvailability::Live,
                 error_kind: None,
             },

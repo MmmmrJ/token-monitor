@@ -1,5 +1,5 @@
 use crate::snapshot::{
-    connected_state, provider_failure, AccountSummary, MonitorSnapshot, ProviderFailure,
+    connected_state, fixed_source_label, provider_failure, MonitorSnapshot, ProviderFailure,
     ProviderStatus, QuotaWindow, QuotaWindows,
 };
 use chrono::{DateTime, Utc};
@@ -115,16 +115,6 @@ fn cursor_state_db_path() -> Result<PathBuf, ProviderFailure> {
             .join("User")
             .join("globalStorage")
             .join("state.vscdb"))
-    }
-}
-
-pub fn auth_path_label() -> String {
-    if cfg!(target_os = "windows") {
-        "%APPDATA%\\Cursor\\User\\globalStorage\\state.vscdb".into()
-    } else if cfg!(target_os = "macos") {
-        "~/Library/Application Support/Cursor/User/globalStorage/state.vscdb".into()
-    } else {
-        "~/.config/Cursor/User/globalStorage/state.vscdb".into()
     }
 }
 
@@ -376,12 +366,11 @@ async fn fetch_plan_name(client: &Client, access_token: &str) -> Option<String> 
 }
 
 pub async fn fetch_local_snapshot() -> Result<MonitorSnapshot, ProviderFailure> {
-    let label = auth_path_label();
     let mut auth = read_cursor_auth(&cursor_state_db_path()?)?;
     let client = build_client()?;
 
     let result = fetch_with_token(&client, &auth.access_token).await;
-    let (windows, plan_name) = match result {
+    let (windows, _plan_name) = match result {
         Ok(value) => value,
         Err(failure)
             if failure.error_kind == crate::snapshot::ProviderErrorKind::ReauthRequired =>
@@ -393,20 +382,15 @@ pub async fn fetch_local_snapshot() -> Result<MonitorSnapshot, ProviderFailure> 
         }
         Err(failure) => return Err(failure),
     };
+    let _ = (auth.email, auth.membership);
 
     let availability = connected_state(&windows);
     let now = Utc::now().to_rfc3339();
     Ok(MonitorSnapshot {
-        account: AccountSummary {
-            display_name: auth.email.unwrap_or_else(|| "Local Cursor account".into()),
-            plan: plan_name
-                .or(auth.membership)
-                .unwrap_or_else(|| "Cursor".into()),
-        },
         provider: ProviderStatus {
             kind: "cursor".into(),
             source: "local_cursor_session".into(),
-            auth_path_label: label,
+            source_label: fixed_source_label("cursor").into(),
             availability,
             error_kind: None,
         },

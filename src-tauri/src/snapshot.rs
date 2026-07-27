@@ -3,6 +3,9 @@ use serde::Serialize;
 use std::collections::HashMap;
 use std::sync::Mutex;
 
+pub const SOURCE_LABEL_CODEX: &str = "Codex auth.json";
+pub const SOURCE_LABEL_CURSOR: &str = "Cursor local session";
+
 #[derive(Clone, Debug, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct QuotaWindows {
@@ -47,13 +50,6 @@ impl QuotaWindow {
     }
 }
 
-#[derive(Clone, Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AccountSummary {
-    pub display_name: String,
-    pub plan: String,
-}
-
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ProviderAvailability {
@@ -95,7 +91,7 @@ impl ProviderErrorKind {
 pub struct ProviderStatus {
     pub kind: String,
     pub source: String,
-    pub auth_path_label: String,
+    pub source_label: String,
     pub availability: ProviderAvailability,
     pub error_kind: Option<ProviderErrorKind>,
 }
@@ -103,7 +99,6 @@ pub struct ProviderStatus {
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MonitorSnapshot {
-    pub account: AccountSummary,
     pub provider: ProviderStatus,
     pub windows: QuotaWindows,
     pub refreshed_at: Option<String>,
@@ -135,24 +130,23 @@ pub fn normalize_provider(provider: Option<&str>) -> &'static str {
     }
 }
 
-pub fn failure_snapshot(
-    kind: &str,
-    failure: ProviderFailure,
-    auth_path_label: String,
-) -> MonitorSnapshot {
-    let (display_name, source) = match kind {
-        "cursor" => ("Local Cursor account", "local_cursor_session"),
-        _ => ("Local Codex account", "local_codex_oauth"),
+pub fn fixed_source_label(kind: &str) -> &'static str {
+    match normalize_provider(Some(kind)) {
+        "cursor" => SOURCE_LABEL_CURSOR,
+        _ => SOURCE_LABEL_CODEX,
+    }
+}
+
+pub fn failure_snapshot(kind: &str, failure: ProviderFailure) -> MonitorSnapshot {
+    let source = match kind {
+        "cursor" => "local_cursor_session",
+        _ => "local_codex_oauth",
     };
     MonitorSnapshot {
-        account: AccountSummary {
-            display_name: display_name.into(),
-            plan: "—".into(),
-        },
         provider: ProviderStatus {
             kind: kind.into(),
             source: source.into(),
-            auth_path_label,
+            source_label: fixed_source_label(kind).into(),
             availability: ProviderAvailability::Unavailable,
             error_kind: Some(failure.error_kind),
         },
@@ -181,6 +175,48 @@ pub fn cached_failure_snapshot(
     cached
 }
 
+fn json_text_contains_sensitive(text: &str) -> bool {
+    let lower = text.to_ascii_lowercase();
+    lower.contains('@')
+        || lower.contains("bearer ")
+        || lower.contains("eyj")
+        || lower.contains("/users/")
+        || lower.contains("/home/")
+        || lower.contains("c:\\")
+        || lower.contains("%appdata%")
+        || lower.contains("://")
+        || lower.contains("displayname")
+        || lower.contains("authpathlabel")
+        || lower.contains("\"plan\"")
+}
+
+pub fn assert_snapshot_safe_for_webview(snapshot: &MonitorSnapshot) -> Result<(), String> {
+    let value = serde_json::to_value(snapshot).map_err(|error| error.to_string())?;
+    let text = value.to_string();
+    if json_text_contains_sensitive(&text) {
+        return Err("snapshot_contains_sensitive_data".into());
+    }
+    if value.get("account").is_some() {
+        return Err("snapshot_contains_account".into());
+    }
+    let provider = value
+        .get("provider")
+        .ok_or_else(|| "snapshot_missing_provider".to_string())?;
+    for key in ["displayName", "plan", "authPathLabel", "token", "accountId"] {
+        if provider.get(key).is_some() || value.get(key).is_some() {
+            return Err(format!("snapshot_contains_forbidden_key:{key}"));
+        }
+    }
+    let label = provider
+        .get("sourceLabel")
+        .and_then(|value| value.as_str())
+        .unwrap_or_default();
+    if label != SOURCE_LABEL_CODEX && label != SOURCE_LABEL_CURSOR {
+        return Err("snapshot_invalid_source_label".into());
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -188,14 +224,10 @@ mod tests {
     #[test]
     fn cached_failure_preserves_last_success_metadata() {
         let snapshot = MonitorSnapshot {
-            account: AccountSummary {
-                display_name: "Local account".into(),
-                plan: "Pro".into(),
-            },
             provider: ProviderStatus {
                 kind: "codex".into(),
                 source: "local_codex_oauth".into(),
-                auth_path_label: "Codex auth.json".into(),
+                source_label: SOURCE_LABEL_CODEX.into(),
                 availability: ProviderAvailability::Live,
                 error_kind: None,
             },
@@ -232,9 +264,8 @@ mod tests {
         let snapshot = failure_snapshot(
             "cursor",
             provider_failure("network_error", "network unavailable"),
-            "Cursor local session".into(),
         );
-        let value = serde_json::to_value(snapshot).expect("serialize failure snapshot");
+        let value = serde_json::to_value(&snapshot).expect("serialize failure snapshot");
         let provider = value.get("provider").expect("provider status");
 
         assert_eq!(
@@ -249,5 +280,34 @@ mod tests {
         );
         assert!(provider.get("state").is_none());
         assert!(provider.get("connected").is_none());
+        assert_eq!(
+            provider.get("sourceLabel").and_then(|value| value.as_str()),
+            Some(SOURCE_LABEL_CURSOR)
+        );
+        assert!(assert_snapshot_safe_for_webview(&snapshot).is_ok());
+    }
+
+    #[test]
+    fn serialized_snapshot_rejects_identity_and_path_leakage() {
+        let snapshot = MonitorSnapshot {
+            provider: ProviderStatus {
+                kind: "codex".into(),
+                source: "local_codex_oauth".into(),
+                source_label: SOURCE_LABEL_CODEX.into(),
+                availability: ProviderAvailability::Live,
+                error_kind: None,
+            },
+            windows: QuotaWindows::default(),
+            refreshed_at: Some("2026-07-27T00:00:00Z".into()),
+            checked_at: "2026-07-27T00:00:00Z".into(),
+            cached: false,
+        };
+        let json = serde_json::to_string(&snapshot).unwrap();
+        assert!(!json.contains("displayName"));
+        assert!(!json.contains("authPathLabel"));
+        assert!(!json.contains("account"));
+        assert!(!json.contains('@'));
+        assert!(!json.contains("/Users/"));
+        assert!(assert_snapshot_safe_for_webview(&snapshot).is_ok());
     }
 }

@@ -245,18 +245,14 @@ fn window_label(provider: &str, window: &str, language: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::snapshot::{AccountSummary, ProviderAvailability, ProviderStatus, QuotaWindows};
+    use crate::snapshot::{ProviderAvailability, ProviderStatus, QuotaWindows};
 
     fn snapshot(remaining: f64, resets_at: Option<&str>, cached: bool) -> MonitorSnapshot {
         MonitorSnapshot {
-            account: AccountSummary {
-                display_name: "demo".into(),
-                plan: "plus".into(),
-            },
             provider: ProviderStatus {
                 kind: "codex".into(),
                 source: "local".into(),
-                auth_path_label: "~/.codex/auth.json".into(),
+                source_label: crate::snapshot::SOURCE_LABEL_CODEX.into(),
                 availability: ProviderAvailability::Live,
                 error_kind: None,
             },
