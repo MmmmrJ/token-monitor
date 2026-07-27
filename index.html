@@ -98,6 +98,7 @@
             </div>
             <b id="source-plan">—</b>
           </div>
+          <h3 class="settings-section-title" data-i18n="sectionDisplay">显示与窗口</h3>
           <fieldset class="provider-picker">
             <legend data-i18n="providerSource">额度来源</legend>
             <button type="button" data-provider="codex" class="active">
@@ -127,6 +128,30 @@
             <input id="start-at-login" type="checkbox" role="switch" />
           </label>
           <p class="setting-inline-error" id="start-at-login-error" role="status" hidden></p>
+
+          <h3 class="settings-section-title" data-i18n="sectionAlerts">额度提醒</h3>
+          <label class="setting-row">
+            <span><strong data-i18n="alertsEnabled">启用额度提醒</strong><small data-i18n="alertsEnabledHelp">低于阈值时发送系统通知</small></span>
+            <input id="alerts-enabled" type="checkbox" role="switch" />
+          </label>
+          <label class="setting-row">
+            <span><strong data-i18n="alertThreshold10">10% 阈值</strong><small data-i18n="alertThreshold10Help">默认启用</small></span>
+            <input id="alert-threshold-10" type="checkbox" role="switch" checked disabled />
+          </label>
+          <label class="setting-row">
+            <span><strong data-i18n="alertThreshold20">20% 阈值</strong><small data-i18n="alertThreshold20Help">可选</small></span>
+            <input id="alert-threshold-20" type="checkbox" role="switch" />
+          </label>
+          <label class="setting-row">
+            <span><strong data-i18n="alertThreshold5">5% 阈值</strong><small data-i18n="alertThreshold5Help">可选</small></span>
+            <input id="alert-threshold-5" type="checkbox" role="switch" />
+          </label>
+          <label class="setting-row">
+            <span><strong data-i18n="alertOnReset">重置恢复提醒</strong><small data-i18n="alertOnResetHelp">额度周期重置后提醒一次</small></span>
+            <input id="alert-on-reset" type="checkbox" role="switch" checked />
+          </label>
+          <p class="setting-inline-error" id="alerts-error" role="status" hidden></p>
+
           <p class="privacy-note"><i class="ph ph-shield-check" aria-hidden="true"></i><span data-i18n="privacy">登录令牌只在 Rust 进程内读取，不会发送到前端、日志或导出文件。</span></p>
         </div>
       </section>

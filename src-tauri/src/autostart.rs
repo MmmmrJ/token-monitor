@@ -237,6 +237,21 @@ impl AutostartStore for SystemAutostart<'_> {
     }
 
     fn disable_old(&mut self) -> Result<(), ()> {
+        #[cfg(target_os = "macos")]
+        {
+            if let Ok(home) = std::env::var("HOME") {
+                let plist = std::path::PathBuf::from(home)
+                    .join("Library")
+                    .join("LaunchAgents")
+                    .join(format!("{OLD_APP_NAME}.plist"));
+                if plist.exists() {
+                    let _ = std::process::Command::new("launchctl")
+                        .args(["unload", "-w"])
+                        .arg(&plist)
+                        .output();
+                }
+            }
+        }
         self.old.disable().map_err(|_| ())
     }
 }
@@ -256,6 +271,26 @@ fn with_system_store(
 #[tauri::command]
 pub fn initialize_start_at_login(app: AppHandle, preferred_enabled: bool) -> AutostartStatus {
     with_system_store(&app, |store| initialize_autostart(store, preferred_enabled))
+}
+
+#[tauri::command]
+pub fn query_start_at_login(app: AppHandle) -> AutostartStatus {
+    with_system_store(&app, |store| {
+        match probe(store) {
+            Ok((new_enabled, old_enabled)) => {
+                // Prefer cleaning a leftover old item when the new item is already active.
+                if old_enabled {
+                    match cleanup_old_if_present(store, true, new_enabled) {
+                        Ok(migrated) => AutostartStatus::ok(new_enabled, migrated),
+                        Err(status) => status,
+                    }
+                } else {
+                    AutostartStatus::ok(new_enabled, false)
+                }
+            }
+            Err(kind) => AutostartStatus::err(false, kind),
+        }
+    })
 }
 
 #[tauri::command]

@@ -175,7 +175,7 @@ body:not(.tauri-host) {
 .next-reset strong { color: #fff; font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; font-size: 24px; font-weight: 700; letter-spacing: -.045em; }
 .next-reset time { color: var(--soft); font-size: 10px; font-weight: 620; }
 
-.settings-layer { position: absolute; z-index: 10; inset: 58px 0 0; padding: 12px; overflow: auto; background: rgba(6, 10, 17, .68); backdrop-filter: blur(14px); }
+.settings-layer { position: absolute; z-index: 10; inset: 58px 0 0; padding: 12px 12px 20px; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; background: rgba(6, 10, 17, .68); backdrop-filter: blur(14px); }
 .settings-layer[hidden] { display: none; }
 .settings-card { width: min(470px, 100%); margin: 0 auto; padding: 15px; border: 1px solid var(--line); border-radius: 18px; background: rgba(20, 27, 40, .97); box-shadow: 0 20px 45px rgba(0, 0, 0, .42); }
 .settings-heading { display: flex; align-items: flex-start; justify-content: space-between; }
@@ -205,6 +205,7 @@ body:not(.tauri-host) {
 .setting-row input:disabled { opacity: .45; cursor: default; }
 .setting-inline-error { margin: -4px 0 0; color: #ffc2ca; font-size: 9px; line-height: 1.4; }
 .setting-inline-error[hidden] { display: none; }
+.settings-section-title { margin: 14px 0 2px; color: var(--soft); font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
 .privacy-note { display: flex; align-items: flex-start; gap: 7px; margin: 10px 0 0; color: var(--soft); font-size: 9px; line-height: 1.45; }
 .privacy-note i { flex: none; margin-top: 1px; color: var(--green); font-size: 14px; }
 

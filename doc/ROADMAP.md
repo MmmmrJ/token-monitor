@@ -1,14 +1,14 @@
 # Token Monitor 开发路线图
 
-> 状态：`v1.1.2` 已完成本地实现与 macOS 验收，待 Windows CI；后续版本待实施
+> 状态：`v1.1.3` 已发布（Tag `v1.1.3` 已合入 `main`）；下一工作项为 `v1.2.0`
 >
-> 已发布基线：`v1.1.1`；当前工作区：`v1.1.2`
+> 已发布基线：`v1.1.3`；当前工作区：`v1.2.0` 实施中
 >
-> 规划周期：未来 4 个版本，约 10–13 周
+> 规划周期：未来版本约 7–9 周（`v1.2.0` + `v1.3.0`）
 >
 > 平台策略：Windows / macOS 同等支持与验收
 >
-> 最后更新：2026-07-16
+> 最后更新：2026-07-24
 
 ## 1. 产品方向
 
@@ -68,29 +68,26 @@ Token Monitor 继续定位为一个轻量、低噪声、隐私优先的 Codex / 
 | 版本 | 主题 | 目标周期 | 发布门槛 |
 | --- | --- | --- | --- |
 | `v1.1.2` | 安全与数据可信度热修 | 1–2 周 | URL、Cursor 映射、竞态、重置时间、状态模型和 CI 完成 |
-| `v1.1.3` | 原生窗口与生命周期修复 | 1–2 周 | 已实施；待跨平台发布验收（关闭到托盘、单实例、autostart 迁移） |
-| `v1.2.0` | 后台监控、托盘、提醒与更新引导 | 3–5 周 | 隐藏刷新、通知去重、Updater bootstrap 和性能达标 |
+| `v1.1.3` | 原生窗口与生命周期修复 | 1–2 周 | 已完成（关闭到托盘、单实例、autostart 迁移；Tag `v1.1.3`） |
+| `v1.2.0` | 后台监控、托盘、提醒与更新引导 | 3–5 周 | 代码已落地于 `codex/v1.2.0-background-monitor`；待 Secrets/CI 与手工验收后打 Tag |
 | `v1.3.0` | 更新体验闭环与安全诊断 | 3–4 周 | v1.2.0 应用内升级、Release 完整且签名状态明确披露 |
 
 已确认的产品默认值：窗口内容 `0px` 贴合原生画布；Cursor 中文 UI 使用“订阅额度 / API 额度”；提醒默认仅启用 10%；当前阶段允许发布未经过 Apple 公证或 Windows 商业代码签名的 Stable 安装包，但必须明确提示风险。
 
-### 3.1 当前实施进度（2026-07-16）
+### 3.1 当前实施进度（2026-07-24）
 
-`v1.1.2` 已完成代码实现和 macOS 本地验收，本次提交将创建对应 `v1.1.2` Tag；Windows 编译和双平台安装资产以 Tag 触发的 GitHub Actions 结果为最终发布门槛。
+`v1.1.3` 已合入 `main` 并创建 annotated Tag `v1.1.3`。双平台安装资产与 Quality/Release 结果以 GitHub Actions 为准。当前开发重点为 `v1.2.0`。
 
 | 工作项 | 状态 | 已落地内容 |
 | --- | --- | --- |
-| Codex 请求安全 | 已完成 | 精确 HTTPS 域名/端口/路径校验，禁止 301/302/307/308 跳转，恶意基址回退默认地址 |
-| Cursor 数据真实性 | 已完成 | 仅映射 `autoPercentUsed` / `apiPercentUsed`，删除金额、总百分比和 legacy 请求桶补数 |
-| 重置时间 | 已完成 | `resetsAt` 支持 `null`，Codex/Cursor 缺失重置时间时不再生成占位值 |
-| Provider 状态模型 | 已完成 | availability、errorKind、cached 正交表达，失败请求不覆盖最近成功时间 |
-| 前端竞态与缓存 | 已完成 | Provider 独立 Snapshot、request ID、刷新防抖和 stale 缓存分桶，20 次快切测试通过 |
-| 双语状态 UI | 已完成 | 中文“订阅额度 / API 额度”，完整错误、部分可用、离线缓存和无重置时间文案 |
-| 工程质量 | 已完成 | 前端纯函数测试、Rust 测试、Clippy、版本一致性脚本和双平台 Quality workflow |
-| macOS 本地验收 | 已完成 | Vite 构建、Tauri `.app` 打包、真实 Codex/Cursor 切换和 3 秒状态短条验证通过 |
-| Windows 与 Release | 待 CI | `v1.1.2` Tag 推送后构建 Windows MSI/NSIS 与 macOS Universal DMG，并检查 Release 资产 |
+| 贴边画布与缩放 | 已完成 | `100% × 100%` 贴边、八向缩放、`480 × 300` 最小尺寸、28px 圆角、无外投影 |
+| 关闭到托盘 | 已完成 | `CloseRequested` 隐藏；托盘退出 / Cmd+Q 真正结束进程 |
+| 单实例 | 已完成 | `tauri-plugin-single-instance` 为首个插件；第二实例共用 `show → unminimize → set_focus` |
+| autostart 迁移 | 已完成 | 新名 `Token Monitor`；先建新后删旧；设置页显示系统真实状态与双语内联错误 |
+| Tag 与发布触发 | 已完成 | `v1.1.3` Tag 已推送；Release workflow 负责 MSI/NSIS/DMG |
+| v1.1.2 可信度基线 | 已完成 | URL 校验、Cursor 严格映射、竞态隔离、状态模型与双平台 Quality |
 
-当前自动化基线：前端测试 4 项、Rust 测试 25 项，`cargo clippy --all-targets -- -D warnings` 零警告。`v1.1.3` 代码已在 `codex/v1.1.3-lifecycle` 落地，待双平台 Quality/Release 验收后打 Stable Tag；`v1.2.0`、`v1.3.0` 尚未开始实现。
+当前自动化基线：前端测试 4 项、Rust 测试 31 项，`cargo clippy --all-targets -- -D warnings` 零警告。`v1.2.0` 在分支 `codex/v1.2.0-background-monitor` 已实现协调器、托盘、提醒与 Updater bootstrap；正式 Stable Tag 需先配置 `TAURI_SIGNING_*` Secrets 并通过 Release 门禁。`v1.3.0` 尚未开始。
 
 ## 4. v1.1.2 — 安全与可信度热修
 
@@ -257,7 +254,7 @@ MonitorSnapshot.checkedAt          # 最近尝试时间
 - 连续启动 10 次只有一个实例，已有窗口被显示并聚焦。
 - 从 v1.1.1 的旧 autostart 项升级后不重复启动，系统启动项显示 Token Monitor。
 
-**实施状态（2026-07-20）**：关闭到托盘、单实例与 autostart 迁移已在代码中完成，并附带纯决策单元测试；贴边画布与缩放作为回归项保留。跨平台 CI、Release 资产与手工生命周期验收通过前，不创建 `v1.1.3` Stable Tag。
+**实施状态（2026-07-24）**：关闭到托盘、单实例与 autostart 迁移已合入 `main`，并创建 annotated Tag `v1.1.3`。贴边画布与缩放作为回归项保留。双平台 Quality/Release 资产与手工生命周期验收以 GitHub Actions 与本地验收清单为准。
 
 ## 6. v1.2.0 — 后台监控、托盘、额度提醒与更新引导
 
@@ -535,19 +532,18 @@ npm ci
 ```bash
 git checkout main
 git pull --ff-only
-git checkout -b codex/v1.1.2-trust-hotfix
+git checkout -b codex/v1.2.0-background-monitor
 ```
 
-第一批提交建议拆分为：
+`v1.2.0` 实施细节见 `doc/V1.2.0_IMPLEMENTATION_PLAN.md`。建议拆分为：
 
-1. `fix: harden Codex usage URL allowlist`
-2. `fix: enforce strict Cursor quota mapping`
-3. `fix: isolate provider refresh requests`
-4. `fix: preserve missing Cursor reset times`
-5. `refactor: separate provider availability and errors`
-6. `ci: add cross-platform quality gates`
+1. `feat: add MonitorCoordinator background refresh`
+2. `feat: expand tray menu and provider summaries`
+3. `feat: add quota alerts and monitoring preferences`
+4. `feat: bootstrap Tauri updater and release aggregation`
+5. `release: prepare Token Monitor v1.2.0`
 
-v1.1.3 从 `main` 新建 `codex/v1.1.3-native-lifecycle`，独立提交透明画布、关闭到托盘、单实例和 autostart 迁移，避免把原生生命周期风险混入安全热修。
+`v1.1.3` 已从 `codex/v1.1.3-lifecycle` 合入并打 Tag；后续原生生命周期回归项随 `v1.2.0` 一并验收。
 
 ### 9.3 macOS 本地验证
 
@@ -602,4 +598,4 @@ npm run tauri:build -- --target universal-apple-darwin --bundles dmg
 - Tauri updater 签名、macOS Developer ID/notarization 与 Windows Authenticode 是三套独立验证；Release 必须分别记录“通过 / 未配置 / 失败”，其中 updater 签名失败会阻止发布，平台签名未配置暂不阻止发布。
 - 任何安全、额度正确性或凭据边界问题优先于新功能。
 
-下一步在 Windows CI 验证 `v1.1.2`，通过后开始 `v1.1.3` 的原生窗口与生命周期修复。
+下一步从 `main` 创建 `codex/v1.2.0-background-monitor`，按 `doc/V1.2.0_IMPLEMENTATION_PLAN.md` 实施后台协调器、托盘增强、额度提醒与 Updater bootstrap。
