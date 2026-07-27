@@ -8,6 +8,12 @@ import {
   normalizeProvider,
   shouldRenderProviderResponse
 } from './app-core.mjs';
+import {
+  createUpdateUiState,
+  parseUpdateError,
+  reduceUpdateUi,
+  updateControlVisibility
+} from './app-update.mjs';
 
 const nativeInvoke = window.__TAURI__?.core?.invoke;
 const nativeWindow = window.__TAURI__?.window?.getCurrentWindow?.();
@@ -28,7 +34,7 @@ const copy = {
     serviceStatus: '服务异常', invalidStatus: '数据格式变化',
     settingsKicker: '小组件设置', settingsTitle: '显示与启动', viewStyle: '展示样式', dualView: '双环', focusView: '聚焦',
     providerSource: '额度来源', providerSwitch: '额度来源',
-    sectionDisplay: '显示与窗口', sectionAlerts: '额度提醒',
+    sectionDisplay: '显示与窗口', sectionAlerts: '额度提醒', sectionAbout: '关于与诊断',
     alertsEnabled: '启用额度提醒', alertsEnabledHelp: '低于阈值时发送系统通知',
     alertThreshold10: '10% 阈值', alertThreshold10Help: '默认启用',
     alertThreshold20: '20% 阈值', alertThreshold20Help: '可选',
@@ -36,8 +42,24 @@ const copy = {
     alertOnReset: '重置恢复提醒', alertOnResetHelp: '额度周期重置后提醒一次',
     alertsDenied: '系统通知权限被拒绝，请在系统设置中允许后再开启。',
     alertsSaveFailed: '无法保存提醒设置，已回滚。',
+    aboutVersion: '版本', aboutSystem: '系统', aboutUpdaterSig: 'Updater 签名', aboutPlatformSig: '平台代码签名',
+    aboutReleases: 'GitHub Releases', aboutIssues: '问题反馈',
+    checkUpdate: '检查更新', updateConfirm: '确认下载并安装', updateCancel: '取消',
     updateAvailable: '发现新版本', updateInstall: '下载并安装', updateLater: '稍后',
-    updateFailed: '检查或安装更新失败',
+    updateFailed: '检查或安装更新失败', updateUpToDate: '已是最新版本', updateChecking: '正在检查更新…',
+    updateDownloading: '正在下载更新…', updateInstalling: '正在安装并准备重启…',
+    updateConfirmHelp: '将下载、安装并重启应用以完成更新。当前版本会保留到安装成功为止。',
+    updateErrSignature: '更新签名校验失败，已停止安装。',
+    updateErrNetwork: '网络异常，更新已中断。',
+    updateErrDisk: '磁盘空间不足，更新已停止。',
+    updateErrInstall: '安装更新失败，当前版本未更改。',
+    updateErrBusy: '已有更新任务进行中。',
+    updateErrUnknown: '更新失败，请稍后重试。',
+    sigConfigured: '已配置（强制验签）', sigMissing: '缺失',
+    sigNotConfigured: '未配置', sigPlatformHelp: '未配置 Apple 公证 / Windows Authenticode，安装时请核对 SHA-256。',
+    copyDiagnostics: '复制诊断摘要', diagnosticsCopied: '诊断摘要已复制。',
+    diagnosticsBlocked: '诊断内容未通过安全检查，已取消复制。',
+    diagnosticsCopyFailed: '无法写入剪贴板，请手动选择下方文本。',
     switchCodex: '切换到 Codex 额度', switchCursor: '切换到 Cursor 额度',
     brand: 'Token Monitor',
     language: '界面语言', languageHelp: '中文 / English', alwaysTop: '始终置顶', alwaysTopHelp: '保持小组件浮在其他窗口上方',
@@ -77,7 +99,7 @@ const copy = {
     reauthStatus: 'Sign-in expired', unsupportedStatus: 'Unsupported sign-in', networkStatus: 'Network issue',
     serviceStatus: 'Service issue', invalidStatus: 'Data format changed',
     settingsKicker: 'Widget settings', settingsTitle: 'Display & startup', viewStyle: 'View style', dualView: 'Dual rings', focusView: 'Focus',
-    sectionDisplay: 'Display & window', sectionAlerts: 'Quota alerts',
+    sectionDisplay: 'Display & window', sectionAlerts: 'Quota alerts', sectionAbout: 'About & diagnostics',
     providerSource: 'Usage source', providerSwitch: 'Usage source',
     switchCodex: 'Switch to Codex usage', switchCursor: 'Switch to Cursor usage',
     brand: 'Token Monitor',
@@ -94,8 +116,24 @@ const copy = {
     alertOnReset: 'Notify on reset', alertOnResetHelp: 'Notify once when a quota cycle resets',
     alertsDenied: 'Notification permission was denied. Alerts were turned off. Allow access in system settings, then try again.',
     alertsSaveFailed: 'Could not save alert settings. Try again later.',
+    aboutVersion: 'Version', aboutSystem: 'System', aboutUpdaterSig: 'Updater signature', aboutPlatformSig: 'Platform code signing',
+    aboutReleases: 'GitHub Releases', aboutIssues: 'Report an issue',
+    checkUpdate: 'Check for updates', updateConfirm: 'Confirm download & install', updateCancel: 'Cancel',
     updateAvailable: 'Update available', updateInstall: 'Download & install', updateLater: 'Later',
-    updateFailed: 'Update check or install failed',
+    updateFailed: 'Update check or install failed', updateUpToDate: 'You are up to date', updateChecking: 'Checking for updates…',
+    updateDownloading: 'Downloading update…', updateInstalling: 'Installing and preparing restart…',
+    updateConfirmHelp: 'This downloads, installs, and restarts the app. The current version stays until install succeeds.',
+    updateErrSignature: 'Update signature verification failed. Install stopped.',
+    updateErrNetwork: 'Network error. The update was interrupted.',
+    updateErrDisk: 'Not enough disk space. Update stopped.',
+    updateErrInstall: 'Install failed. The current version was not changed.',
+    updateErrBusy: 'Another update task is already running.',
+    updateErrUnknown: 'Update failed. Try again later.',
+    sigConfigured: 'Configured (required)', sigMissing: 'Missing',
+    sigNotConfigured: 'Not configured', sigPlatformHelp: 'Apple notarization / Windows Authenticode are not configured. Verify SHA-256 before install.',
+    copyDiagnostics: 'Copy diagnostics', diagnosticsCopied: 'Diagnostics copied.',
+    diagnosticsBlocked: 'Diagnostics failed the safety check and were not copied.',
+    diagnosticsCopyFailed: 'Clipboard write failed. Select the text below manually.',
     switchView: 'Switch view', refresh: 'Refresh usage', settings: 'Open settings', close: 'Close settings',
     nativeOnly: 'Run the desktop app to read the local sign-in session.',
     missingBoth: 'Connected, but this account did not return complete quota windows.',
@@ -144,6 +182,8 @@ const state = {
   statusKey: '',
   statusTimer: null
 };
+let updateUi = createUpdateUiState();
+let appInfo = null;
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
 const t = (key) => copy[preferences.language][key] || key;
@@ -338,16 +378,90 @@ function ingestSnapshot(snapshot) {
   if (provider === preferences.provider) renderSnapshot();
 }
 
-async function checkForAppUpdate() {
+async function checkForAppUpdate({ manual = false } = {}) {
   if (!nativeInvoke || previewMode) return;
+  if (updateUi.busy) {
+    if (manual) renderUpdatePanel();
+    return;
+  }
+  updateUi = reduceUpdateUi(updateUi, { type: 'check_start' });
+  if (manual) renderUpdatePanel();
   const result = await invoke('check_app_update');
-  if (!result?.available || !result.version) return;
+  if (!result) {
+    updateUi = reduceUpdateUi(updateUi, { type: 'check_result', errorKind: 'update_busy' });
+    if (manual) renderUpdatePanel();
+    return;
+  }
+  if (result.errorKind) {
+    updateUi = reduceUpdateUi(updateUi, { type: 'check_result', errorKind: result.errorKind });
+    if (manual) renderUpdatePanel();
+    return;
+  }
+  updateUi = reduceUpdateUi(updateUi, {
+    type: 'check_result',
+    available: !!result.available,
+    currentVersion: result.currentVersion,
+    version: result.version,
+    notes: result.notes
+  });
+  renderUpdatePanel();
+  if (!manual && result.available && result.version) showBackgroundUpdateBanner(result.version);
+}
+
+function updateErrorCopy(kind) {
+  const map = {
+    signature: 'updateErrSignature',
+    network: 'updateErrNetwork',
+    disk: 'updateErrDisk',
+    install: 'updateErrInstall',
+    update_busy: 'updateErrBusy',
+    unknown: 'updateErrUnknown'
+  };
+  return t(map[kind] || 'updateErrUnknown');
+}
+
+function renderUpdatePanel() {
+  const status = $('#update-status');
+  const notes = $('#update-notes');
+  const install = $('#update-install-button');
+  const confirmActions = $('#update-confirm-actions');
+  const checkBtn = $('#check-update-button');
+  if (!status || !install || !confirmActions || !checkBtn) return;
+
+  const visibility = updateControlVisibility(updateUi.status);
+  checkBtn.disabled = visibility.checkDisabled || updateUi.busy;
+  install.hidden = visibility.installHidden;
+  confirmActions.hidden = visibility.confirmHidden;
+  notes.hidden = visibility.notesHidden || !(updateUi.notes);
+  notes.textContent = updateUi.notes || '';
+  status.classList.toggle('is-error', updateUi.status === 'failed');
+
+  if (updateUi.status === 'checking') status.textContent = t('updateChecking');
+  else if (updateUi.status === 'upToDate') {
+    status.textContent = `${t('updateUpToDate')} (${updateUi.currentVersion || appInfo?.version || ''})`;
+  } else if (updateUi.status === 'available') {
+    status.textContent = `${t('updateAvailable')} ${updateUi.version}`;
+  } else if (updateUi.status === 'confirming') {
+    status.textContent = t('updateConfirmHelp');
+  } else if (updateUi.status === 'downloading') {
+    const pct = updateUi.percent == null ? '' : ` ${updateUi.percent}%`;
+    status.textContent = `${t('updateDownloading')}${pct}`;
+  } else if (updateUi.status === 'installing') {
+    status.textContent = t('updateInstalling');
+  } else if (updateUi.status === 'failed') {
+    status.textContent = updateErrorCopy(updateUi.errorKind);
+  } else {
+    status.textContent = '';
+  }
+}
+
+function showBackgroundUpdateBanner(version) {
   const banner = $('#status-banner');
   clearTimeout(state.statusTimer);
-  state.statusKey = `update:${result.version}`;
+  state.statusKey = `update:${version}`;
   banner.hidden = false;
   banner.classList.remove('is-error');
-  $('#status-copy').textContent = `${t('updateAvailable')} ${result.version}`;
+  $('#status-copy').textContent = `${t('updateAvailable')} ${version}`;
   let actions = $('#update-actions');
   if (!actions) {
     actions = document.createElement('span');
@@ -356,14 +470,15 @@ async function checkForAppUpdate() {
     banner.appendChild(actions);
   }
   actions.innerHTML = '';
-  const install = document.createElement('button');
-  install.type = 'button';
-  install.className = 'text-button';
-  install.textContent = t('updateInstall');
-  install.addEventListener('click', async () => {
-    install.disabled = true;
-    const ok = await invoke('install_app_update');
-    if (ok === null) showStatus(t('updateFailed'), true);
+  const open = document.createElement('button');
+  open.type = 'button';
+  open.className = 'text-button';
+  open.textContent = t('updateInstall');
+  open.addEventListener('click', () => {
+    banner.hidden = true;
+    openSettings(true);
+    updateUi = reduceUpdateUi(updateUi, { type: 'confirm_open' });
+    renderUpdatePanel();
   });
   const later = document.createElement('button');
   later.type = 'button';
@@ -373,21 +488,99 @@ async function checkForAppUpdate() {
     banner.hidden = true;
     actions.innerHTML = '';
   });
-  actions.append(install, later);
+  actions.append(open, later);
+}
+
+async function startConfirmedInstall() {
+  updateUi = reduceUpdateUi(updateUi, { type: 'install_start' });
+  renderUpdatePanel();
+  try {
+    if (!nativeInvoke) throw new Error('native_only');
+    await nativeInvoke('install_app_update');
+  } catch (error) {
+    updateUi = reduceUpdateUi(updateUi, {
+      type: 'install_failed',
+      errorKind: parseUpdateError(error?.message || error)
+    });
+    renderUpdatePanel();
+    showStatus(updateErrorCopy(updateUi.errorKind), true);
+  }
 }
 
 function scheduleUpdateChecks() {
   if (!nativeInvoke || previewMode) return;
-  setTimeout(() => { checkForAppUpdate(); }, 15_000);
-  setInterval(() => { checkForAppUpdate(); }, 24 * 60 * 60 * 1000);
+  setTimeout(() => { checkForAppUpdate({ manual: false }); }, 15_000);
+  setInterval(() => { checkForAppUpdate({ manual: false }); }, 24 * 60 * 60 * 1000);
+  nativeListen?.('updater:progress', (event) => {
+    const payload = event?.payload || {};
+    updateUi = reduceUpdateUi(updateUi, {
+      type: 'progress',
+      percent: payload.percent,
+      installing: payload.percent != null && payload.percent >= 100
+    });
+    renderUpdatePanel();
+  });
 }
 
-function defaultAuthLabel(provider = preferences.provider) {
-  return isCursor(provider)
-    ? (navigator.platform.toLowerCase().includes('win')
-      ? '%APPDATA%\\Cursor\\User\\globalStorage\\state.vscdb'
-      : '~/Library/Application Support/Cursor/User/globalStorage/state.vscdb')
-    : '~/.codex/auth.json';
+function signingLabel(status, kind) {
+  if (kind === 'updater') {
+    return status === 'configured' ? t('sigConfigured') : t('sigMissing');
+  }
+  return status === 'not_configured' ? t('sigNotConfigured') : status;
+}
+
+async function initializeAboutPanel() {
+  if (!nativeInvoke || previewMode) {
+    $('#about-version').textContent = 'preview';
+    $('#about-system').textContent = `${navigator.platform}`;
+    $('#about-updater-sig').textContent = t('sigConfigured');
+    $('#about-platform-sig').textContent = t('sigNotConfigured');
+    return;
+  }
+  appInfo = await invoke('get_app_info');
+  if (!appInfo) return;
+  $('#about-version').textContent = appInfo.version;
+  $('#about-system').textContent = `${appInfo.os} · ${appInfo.arch}`;
+  $('#about-updater-sig').textContent = signingLabel(appInfo.updaterSignatureStatus, 'updater');
+  $('#about-platform-sig').textContent = signingLabel(appInfo.platformSigningStatus, 'platform');
+  $('#about-platform-sig').title = t('sigPlatformHelp');
+}
+
+async function copyDiagnosticsSummary() {
+  const errorEl = $('#diagnostics-error');
+  const fallback = $('#diagnostics-fallback');
+  errorEl.hidden = true;
+  fallback.hidden = true;
+  fallback.value = '';
+  if (!nativeInvoke || previewMode) {
+    errorEl.textContent = t('diagnosticsBlocked');
+    errorEl.hidden = false;
+    return;
+  }
+  const result = await invoke('get_safe_diagnostics', {
+    provider: preferences.provider,
+    language: preferences.language
+  });
+  if (!result?.ok || !result.text) {
+    errorEl.textContent = t('diagnosticsBlocked');
+    errorEl.hidden = false;
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(result.text);
+    showStatus(t('diagnosticsCopied'));
+  } catch {
+    fallback.value = result.text;
+    fallback.hidden = false;
+    fallback.focus();
+    fallback.select();
+    errorEl.textContent = t('diagnosticsCopyFailed');
+    errorEl.hidden = false;
+  }
+}
+
+function sourceLabel(provider = preferences.provider) {
+  return isCursor(provider) ? 'Cursor local session' : 'Codex auth.json';
 }
 
 function previewSnapshot(provider = preferences.provider) {
@@ -399,10 +592,9 @@ function previewSnapshot(provider = preferences.provider) {
   });
   if (isCursor(provider)) {
     return {
-      account: { displayName: 'bianchi@example.com', plan: 'pro' },
       provider: {
         availability: 'live', errorKind: null, kind: 'cursor',
-        source: 'preview', authPathLabel: defaultAuthLabel(provider)
+        source: 'preview', sourceLabel: sourceLabel(provider)
       },
       windows: {
         fiveHour: quota(68, 2_592_000, 12 * 86400_000),
@@ -412,10 +604,9 @@ function previewSnapshot(provider = preferences.provider) {
     };
   }
   return {
-    account: { displayName: 'bianchi@example.com', plan: 'plus' },
     provider: {
       availability: 'live', errorKind: null, kind: 'codex',
-      source: 'preview', authPathLabel: '~/.codex/auth.json'
+      source: 'preview', sourceLabel: sourceLabel(provider)
     },
     windows: { fiveHour: quota(72, 18_000, 3 * 3600_000 + 12 * 60_000), sevenDay: quota(68, 604_800, 4 * 86400_000) },
     refreshedAt: new Date().toISOString(), checkedAt: new Date().toISOString(), cached: false
@@ -497,6 +688,12 @@ function setLanguage(language) {
   renderSnapshot();
   renderStartAtLoginError();
   renderAlertsError();
+  renderUpdatePanel();
+  if (appInfo) {
+    $('#about-updater-sig').textContent = signingLabel(appInfo.updaterSignatureStatus, 'updater');
+    $('#about-platform-sig').textContent = signingLabel(appInfo.platformSigningStatus, 'platform');
+    $('#about-platform-sig').title = t('sigPlatformHelp');
+  }
 }
 
 function formatPercent(windowData) {
@@ -574,7 +771,8 @@ function renderLoadingState() {
   $('#account-pill-copy').textContent = t('loading');
   $('#source-account').textContent = isCursor() ? t('unknownAccountCursor') : t('unknownAccount');
   $('#source-plan').textContent = '—';
-  $('#source-detail').textContent = defaultAuthLabel();
+  $('#source-plan').hidden = true;
+  $('#source-detail').textContent = sourceLabel();
   $('#source-status').textContent = t('loading');
   showStatus('');
 }
@@ -687,9 +885,10 @@ function renderSnapshot() {
   $('#next-reset-time').textContent = next ? formatReset(next) : '—';
 
   const unknown = isCursor() ? t('unknownAccountCursor') : t('unknownAccount');
-  $('#source-account').textContent = snapshot.account?.displayName || unknown;
-  $('#source-plan').textContent = snapshot.account?.plan || '—';
-  $('#source-detail').textContent = provider.authPathLabel || defaultAuthLabel();
+  $('#source-account').textContent = unknown;
+  $('#source-plan').textContent = '—';
+  $('#source-plan').hidden = true;
+  $('#source-detail').textContent = provider.sourceLabel || sourceLabel();
   $('#source-status').textContent = providerHealthDetail(snapshot);
 
   const message = localizedProviderMessage(snapshot, five, week);
@@ -700,11 +899,10 @@ function renderSnapshot() {
 function unavailableSnapshot(provider, errorKind) {
   const now = new Date().toISOString();
   return {
-    account: { displayName: isCursor(provider) ? t('unknownAccountCursor') : t('unknownAccount'), plan: '—' },
     provider: {
       availability: 'unavailable', errorKind, kind: provider,
       source: provider === 'cursor' ? 'local_cursor_session' : 'local_codex_oauth',
-      authPathLabel: defaultAuthLabel(provider)
+      sourceLabel: sourceLabel(provider)
     },
     windows: { fiveHour: null, sevenDay: null },
     refreshedAt: null,
@@ -808,8 +1006,28 @@ $('#start-at-login').addEventListener('change', (event) => {
 ['#alerts-enabled', '#alert-threshold-20', '#alert-threshold-5', '#alert-on-reset'].forEach((selector) => {
   $(selector)?.addEventListener('change', () => { saveMonitoringPreferences(); });
 });
+$('#check-update-button')?.addEventListener('click', () => checkForAppUpdate({ manual: true }));
+$('#update-install-button')?.addEventListener('click', () => {
+  updateUi = reduceUpdateUi(updateUi, { type: 'confirm_open' });
+  renderUpdatePanel();
+});
+$('#update-confirm-button')?.addEventListener('click', () => startConfirmedInstall());
+$('#update-cancel-button')?.addEventListener('click', () => {
+  updateUi = reduceUpdateUi(updateUi, { type: 'confirm_cancel' });
+  renderUpdatePanel();
+});
+$('#about-releases')?.addEventListener('click', () => {
+  const url = appInfo?.releaseUrl || 'https://github.com/MmmmrJ/token-monitor/releases';
+  invoke('open_external_url', { url });
+});
+$('#about-issues')?.addEventListener('click', () => {
+  const url = appInfo?.issueUrl || 'https://github.com/MmmmrJ/token-monitor/issues';
+  invoke('open_external_url', { url });
+});
+$('#copy-diagnostics-button')?.addEventListener('click', () => copyDiagnosticsSummary());
 window.addEventListener('keydown', (event) => { if (event.key === 'Escape') openSettings(false); });
 
+initializeAboutPanel();
 if (nativeInvoke && !previewMode) {
   invoke('set_always_on_top', { enabled: preferences.alwaysOnTop });
   syncUiPreferences();

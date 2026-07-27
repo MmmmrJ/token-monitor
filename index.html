@@ -93,10 +93,10 @@
             <i class="ph ph-desktop-tower" aria-hidden="true"></i>
             <div>
               <strong id="source-account">本机 Codex 账户</strong>
-              <span id="source-detail">~/.codex/auth.json</span>
+              <span id="source-detail">Codex auth.json</span>
               <small id="source-status" role="status">正在读取</small>
             </div>
-            <b id="source-plan">—</b>
+            <b id="source-plan" hidden>—</b>
           </div>
           <h3 class="settings-section-title" data-i18n="sectionDisplay">显示与窗口</h3>
           <fieldset class="provider-picker">
@@ -151,6 +151,33 @@
             <input id="alert-on-reset" type="checkbox" role="switch" checked />
           </label>
           <p class="setting-inline-error" id="alerts-error" role="status" hidden></p>
+
+          <h3 class="settings-section-title" data-i18n="sectionAbout">关于与诊断</h3>
+          <div class="about-card" id="about-card">
+            <div class="about-row"><span data-i18n="aboutVersion">版本</span><strong id="about-version">—</strong></div>
+            <div class="about-row"><span data-i18n="aboutSystem">系统</span><strong id="about-system">—</strong></div>
+            <div class="about-row"><span data-i18n="aboutUpdaterSig">Updater 签名</span><strong id="about-updater-sig">—</strong></div>
+            <div class="about-row"><span data-i18n="aboutPlatformSig">平台代码签名</span><strong id="about-platform-sig">—</strong></div>
+            <div class="about-actions">
+              <button class="text-button" id="about-releases" type="button" data-i18n="aboutReleases">GitHub Releases</button>
+              <button class="text-button" id="about-issues" type="button" data-i18n="aboutIssues">问题反馈</button>
+            </div>
+            <div class="about-update">
+              <button class="text-button" id="check-update-button" type="button" data-i18n="checkUpdate">检查更新</button>
+              <p class="about-update-status" id="update-status" role="status"></p>
+              <div class="about-update-notes" id="update-notes" hidden></div>
+              <div class="about-update-actions" id="update-confirm-actions" hidden>
+                <button class="text-button" id="update-confirm-button" type="button" data-i18n="updateConfirm">确认下载并安装</button>
+                <button class="text-button" id="update-cancel-button" type="button" data-i18n="updateCancel">取消</button>
+              </div>
+              <button class="text-button" id="update-install-button" type="button" data-i18n="updateInstall" hidden>下载并安装</button>
+            </div>
+            <div class="about-diagnostics">
+              <button class="text-button" id="copy-diagnostics-button" type="button" data-i18n="copyDiagnostics">复制诊断摘要</button>
+              <p class="setting-inline-error" id="diagnostics-error" role="status" hidden></p>
+              <textarea id="diagnostics-fallback" class="diagnostics-fallback" readonly hidden rows="8"></textarea>
+            </div>
+          </div>
 
           <p class="privacy-note"><i class="ph ph-shield-check" aria-hidden="true"></i><span data-i18n="privacy">登录令牌只在 Rust 进程内读取，不会发送到前端、日志或导出文件。</span></p>
         </div>

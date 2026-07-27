@@ -1,8 +1,8 @@
 # Token Monitor 开发路线图
 
-> 状态：`v1.2.0` 已发布（Tag `v1.2.0` 已合入 `main`）；下一工作项为 `v1.3.0`
+> 状态：`v1.2.0` 已发布；`v1.3.0` 实施中（分支 `codex/v1.3.0-update-diagnostics`）
 >
-> 已发布基线：`v1.2.0`；当前工作区：`v1.3.0` 待启动
+> 已发布基线：`v1.2.0`；当前工作区：`v1.3.0` 实施中
 >
 > 规划周期：下一版本约 3–4 周（`v1.3.0`）
 >
@@ -70,13 +70,13 @@ Token Monitor 继续定位为一个轻量、低噪声、隐私优先的 Codex / 
 | `v1.1.2` | 安全与数据可信度热修 | 1–2 周 | 已完成 |
 | `v1.1.3` | 原生窗口与生命周期修复 | 1–2 周 | 已完成（关闭到托盘、单实例、autostart 迁移；Tag `v1.1.3`） |
 | `v1.2.0` | 后台监控、托盘、提醒与更新引导 | 3–5 周 | 已完成（合入 `main`；Tag `v1.2.0`；Secrets 与 Release 聚合已打通） |
-| `v1.3.0` | 更新体验闭环与安全诊断 | 3–4 周 | v1.2.0 应用内升级、Release 完整且签名状态明确披露 |
+| `v1.3.0` | 更新体验闭环与安全诊断 | 3–4 周 | 实施中（设置页更新闭环、签名披露、诊断摘要、`SHA256SUMS.txt`） |
 
 已确认的产品默认值：窗口内容 `0px` 贴合原生画布；Cursor 中文 UI 使用“订阅额度 / API 额度”；提醒默认仅启用 10%；当前阶段允许发布未经过 Apple 公证或 Windows 商业代码签名的 Stable 安装包，但必须明确提示风险。
 
 ### 3.1 当前实施进度（2026-07-27）
 
-`v1.2.0` 已从 `codex/v1.2.0-background-monitor` 合入 `main`，并创建 annotated Tag `v1.2.0`。`TAURI_SIGNING_*` Secrets 已配置；Release 产出 DMG / MSI / NSIS、已签名 updater 资产（macOS `.app.tar.gz`、Windows 已签名 `*-setup.exe`）与唯一 `latest.json`。双平台 Quality/Release 结果以 GitHub Actions 为准。当前开发重点为 `v1.3.0`。
+`v1.2.0` 已发布。`v1.3.0` 在分支 `codex/v1.3.0-update-diagnostics` 推进：设置页“关于与诊断”、手动/后台更新确认流、安全诊断摘要，以及 Release `SHA256SUMS.txt`。双平台 Quality/Release 结果以 GitHub Actions 为准。
 
 | 工作项 | 状态 | 已落地内容 |
 | --- | --- | --- |
@@ -89,8 +89,11 @@ Token Monitor 继续定位为一个轻量、低噪声、隐私优先的 Codex / 
 | Release 聚合 | 已完成 | 双平台 artifact → 统一 Release；`latest.json` 仅指向已签名 updater archive |
 | Tag 与发布触发 | 已完成 | `v1.2.0` Tag 已推送；`TAURI_SIGNING_*` 门禁通过后才发布 updater 资产 |
 | v1.1.2 可信度基线 | 已完成 | URL 校验、Cursor 严格映射、竞态隔离、状态模型与双平台 Quality |
+| 设置页更新闭环 | 实施中 | 检查 / 确认 / 进度 / 失败分类；后台检查仅在发现更新时提示 |
+| 关于与诊断 | 实施中 | `get_app_info` / `get_safe_diagnostics`、签名状态披露、复制诊断摘要 |
+| SHA256SUMS | 实施中 | Release 生成并校验全量资产哈希 |
 
-当前自动化基线：前端测试 6 项、Rust 测试 36 项，`cargo clippy --all-targets -- -D warnings` 零警告。`v1.3.0` 尚未开始。
+当前自动化基线：前端测试 13 项、Rust 测试 40 项，`cargo clippy --all-targets -- -D warnings` 零警告。
 
 ## 4. v1.1.2 — 安全与可信度热修
 

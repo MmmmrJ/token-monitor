@@ -6,6 +6,7 @@
 mod alerts;
 mod autostart;
 mod coordinator;
+mod diagnostics;
 mod lifecycle;
 mod preferences;
 mod providers;
@@ -15,6 +16,7 @@ mod updater;
 
 use autostart::{initialize_start_at_login, query_start_at_login, set_start_at_login};
 use coordinator::{spawn_coordinator_loop, MonitorCoordinator};
+use diagnostics::{get_app_info, get_safe_diagnostics, open_external_url};
 use lifecycle::LifecycleState;
 use preferences::{
     get_monitor_preferences, set_monitor_preferences, sync_ui_preferences, PreferencesStore,
@@ -93,7 +95,10 @@ fn main() {
             set_monitor_preferences,
             sync_ui_preferences,
             check_app_update,
-            install_app_update
+            install_app_update,
+            get_app_info,
+            get_safe_diagnostics,
+            open_external_url
         ])
         .build(tauri::generate_context!())
         .expect("error while building Token Monitor")
