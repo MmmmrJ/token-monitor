@@ -24,13 +24,24 @@ jobs:
           - name: macOS universal
             platform: macos-latest
             rust-targets: aarch64-apple-darwin,x86_64-apple-darwin
-            args: --target universal-apple-darwin --bundles dmg
+            # `app` is required so createUpdaterArtifacts can emit .app.tar.gz (+ .sig).
+            # `dmg` alone builds then deletes the .app and skips updater archives.
+            args: --target universal-apple-darwin --bundles app,dmg
             artifact: macos-universal
+            require: |
+              ls staged/*.dmg >/dev/null
+              ls staged/*.app.tar.gz >/dev/null
+              ls staged/*.app.tar.gz.sig >/dev/null
           - name: Windows x64
             platform: windows-latest
             rust-targets: x86_64-pc-windows-msvc
             args: --target x86_64-pc-windows-msvc --bundles msi,nsis
             artifact: windows-x64
+            require: |
+              ls staged/*.msi >/dev/null
+              ls staged/*setup.exe >/dev/null
+              ls staged/*.nsis.zip >/dev/null
+              ls staged/*.nsis.zip.sig >/dev/null
 
     steps:
       - name: Check out source
@@ -88,18 +99,32 @@ jobs:
           releaseDraft: true
           args: ${{ matrix.args }}
 
+      - name: Stage platform artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p staged
+          # upload-artifact globs miss compound updater names (*.app.tar.gz / *.nsis.zip);
+          # stage via find so Release aggregation always receives signed updater archives.
+          find src-tauri/target -type f \( \
+            -name '*.dmg' -o \
+            -name '*.msi' -o \
+            -name '*setup.exe' -o \
+            -name '*.sig' -o \
+            -name '*.app.tar.gz' -o \
+            -name '*.nsis.zip' -o \
+            -name '*.msi.zip' \
+          \) -print0 | while IFS= read -r -d '' file; do
+            cp "$file" "staged/$(basename "$file")"
+          done
+          ls -la staged
+          ${{ matrix.require }}
+
       - name: Upload platform artifacts
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
-          path: |
-            src-tauri/target/**/release/bundle/**/*.dmg
-            src-tauri/target/**/release/bundle/**/*.msi
-            src-tauri/target/**/release/bundle/**/*setup.exe
-            src-tauri/target/**/release/bundle/**/*.exe
-            src-tauri/target/**/release/bundle/**/*.sig
-            src-tauri/target/**/release/bundle/**/*.app.tar.gz
-            src-tauri/target/**/release/bundle/**/*.nsis.zip
+          path: staged/*
           if-no-files-found: error
 
   publish:
